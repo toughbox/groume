@@ -318,7 +318,7 @@ INSERT INTO mission (title, description, mission_type, reward_ticket, requiremen
 
 -- 초기 관리자 계정 (비밀번호: admin123)
 INSERT INTO user (username, email, password_hash, name, age, gender, region) VALUES
-('admin', 'admin@multing.com', crypt('admin123', gen_salt('bf')), '관리자', 30, 'male', '서울');
+('admin', 'admin@groume.com', crypt('admin123', gen_salt('bf')), '관리자', 30, 'male', '서울');
 
 COMMENT ON TABLE user IS '사용자 정보';
 COMMENT ON TABLE meeting IS '미팅 신청 정보';
