@@ -38,7 +38,7 @@ CREATE TABLE meeting (
     min_age INTEGER NOT NULL CHECK (min_age >= 18),                    -- 선호 최소 나이
     max_age INTEGER NOT NULL CHECK (max_age >= min_age),               -- 선호 최대 나이
     preferred_region VARCHAR(50) NOT NULL,                             -- 선호 지역
-    meeting_style VARCHAR(50) NOT NULL,                                -- 미팅 스타일 (카페, 식당 등)
+    meeting_place VARCHAR(50) NOT NULL,                                -- 미팅 장소 (카페, 식당, 술집 등)
     preferred_dates JSONB DEFAULT '[]',                                -- 선호 날짜 배열 (JSON)
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'matched', 'completed', 'cancelled', 'expired')), -- 미팅 상태
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,    -- 생성일
