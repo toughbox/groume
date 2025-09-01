@@ -1,0 +1,187 @@
+erDiagram
+    user {
+        UUID id PK
+        VARCHAR username
+        VARCHAR email
+        VARCHAR password_hash
+        VARCHAR name
+        INTEGER age
+        VARCHAR gender
+        VARCHAR region
+        VARCHAR phone
+        TEXT profile_image_url
+        TEXT bio
+        JSONB interests
+        INTEGER ticket_count
+        DECIMAL rating
+        INTEGER rating_count
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+        TIMESTAMP last_login
+        BOOLEAN is_active
+    }
+
+    meeting {
+        UUID id PK
+        VARCHAR title
+        TEXT description
+        UUID leader_id FK
+        INTEGER group_size
+        INTEGER min_age
+        INTEGER max_age
+        VARCHAR preferred_region
+        VARCHAR meeting_place
+        JSONB preferred_dates
+        VARCHAR status
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+        TIMESTAMP expires_at
+    }
+
+    meeting_member {
+        UUID id PK
+        UUID meeting_id FK
+        UUID user_id FK
+        VARCHAR role
+        TIMESTAMP joined_at
+        BOOLEAN is_confirmed
+    }
+
+    matching_request {
+        UUID id PK
+        UUID meeting_id FK
+        UUID target_meeting_id FK
+        VARCHAR status
+        UUID requester_id FK
+        TEXT message
+        TIMESTAMP created_at
+        TIMESTAMP expires_at
+        TIMESTAMP responded_at
+    }
+
+    matched_meeting {
+        UUID id PK
+        UUID meeting1_id FK
+        UUID meeting2_id FK
+        TIMESTAMP matched_at
+        VARCHAR status
+        TEXT meeting_location
+        TIMESTAMP meeting_datetime
+        TIMESTAMP created_at
+    }
+
+    chat_room {
+        UUID id PK
+        UUID matched_meeting_id FK
+        VARCHAR name
+        VARCHAR type
+        TIMESTAMP created_at
+        TIMESTAMP last_message_at
+        BOOLEAN is_active
+    }
+
+    message {
+        UUID id PK
+        UUID chat_room_id FK
+        UUID sender_id FK
+        TEXT content
+        VARCHAR message_type
+        JSONB metadata
+        TIMESTAMP created_at
+        BOOLEAN is_deleted
+        TIMESTAMP read_at
+    }
+
+    ticket {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR ticket_type
+        INTEGER amount
+        VARCHAR source
+        TEXT description
+        TIMESTAMP created_at
+        TIMESTAMP expires_at
+        BOOLEAN is_used
+        TIMESTAMP used_at
+    }
+
+    mission {
+        UUID id PK
+        VARCHAR title
+        TEXT description
+        VARCHAR mission_type
+        INTEGER reward_tickets
+        JSONB requirements
+        BOOLEAN is_active
+        TIMESTAMP created_at
+    }
+
+    user_mission {
+        UUID id PK
+        UUID user_id FK
+        UUID mission_id FK
+        VARCHAR status
+        INTEGER progress
+        INTEGER max_progress
+        TIMESTAMP started_at
+        TIMESTAMP completed_at
+        TIMESTAMP claimed_at
+    }
+
+    review {
+        UUID id PK
+        UUID reviewer_id FK
+        UUID reviewee_id FK
+        UUID matched_meeting_id FK
+        DECIMAL rating
+        TEXT comment
+        TIMESTAMP created_at
+    }
+
+    notification {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR title
+        TEXT message
+        VARCHAR notification_type
+        JSONB data
+        BOOLEAN is_read
+        TIMESTAMP created_at
+    }
+
+    report {
+        UUID id PK
+        UUID reporter_id FK
+        UUID reported_user_id FK
+        VARCHAR report_type
+        TEXT reason
+        VARCHAR status
+        TIMESTAMP created_at
+        TIMESTAMP resolved_at
+    }
+
+    %% 관계 정의
+    user ||--o{ meeting : "creates"
+    user ||--o{ meeting_member : "joins"
+    user ||--o{ matching_request : "requests"
+    user ||--o{ ticket : "owns"
+    user ||--o{ user_mission : "participates"
+    user ||--o{ review : "writes"
+    user ||--o{ review : "receives"
+    user ||--o{ message : "sends"
+    user ||--o{ notification : "receives"
+    user ||--o{ report : "makes"
+    user ||--o{ report : "receives"
+
+    meeting ||--o{ meeting_member : "has"
+    meeting ||--o{ matching_request : "requests"
+    meeting ||--o{ matching_request : "receives"
+    meeting ||--o{ matched_meeting : "matches_as_meeting1"
+    meeting ||--o{ matched_meeting : "matches_as_meeting2"
+
+    matched_meeting ||--|| chat_room : "has"
+    matched_meeting ||--o{ review : "generates"
+
+    chat_room ||--o{ message : "contains"
+
+    mission ||--o{ user_mission : "assigned_to"

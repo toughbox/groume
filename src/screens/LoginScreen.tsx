@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,36 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { Button, Input } from 'react-native-elements';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../App';
+import { useAppDispatch, useAppSelector } from '../hooks/useAppDispatch';
+import { loginUser, clearError } from '../store/authSlice';
 
-interface LoginScreenProps {
-  onLogin: (username: string, password: string) => void;
-}
+type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+export const LoginScreen: React.FC = () => {
+  const navigation = useNavigation<LoginScreenNavigationProp>();
+  const dispatch = useAppDispatch();
+  const { isLoading, error, isAuthenticated } = useAppSelector((state) => state.auth);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+
+  // 에러 발생 시 처리
+  useEffect(() => {
+    if (error) {
+      Alert.alert('로그인 실패', error, [
+        {
+          text: '확인',
+          onPress: () => dispatch(clearError()),
+        },
+      ]);
+    }
+  }, [error, dispatch]);
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -26,15 +44,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      onLogin(username, password);
-    } catch (error) {
-      Alert.alert('로그인 실패', '아이디 또는 비밀번호가 올바르지 않습니다.');
-    } finally {
-      setIsLoading(false);
-    }
+    dispatch(loginUser({ username, password }));
   };
 
   return (
@@ -87,10 +97,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             />
 
             <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>
-                계정이 없으신가요?{' '}
+              <Text style={styles.signupText}>계정이 없으신가요? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
                 <Text style={styles.signupLink}>회원가입</Text>
-              </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -206,6 +216,8 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
   signupContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     marginTop: 15,
   },

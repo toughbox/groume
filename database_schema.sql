@@ -2,12 +2,11 @@
 -- 생성일: 2024년
 
 -- 확장 기능 활성화
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 사용자 테이블
 CREATE TABLE user (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                     -- 사용자 고유 ID
+    id BIGSERIAL PRIMARY KEY,                                            -- 사용자 고유 ID
     username VARCHAR(50) UNIQUE NOT NULL,                               -- 로그인 아이디 (유니크)
     email VARCHAR(100) UNIQUE NOT NULL,                                 -- 이메일 주소 (유니크)
     password_hash VARCHAR(255) NOT NULL,                                -- 암호화된 비밀번호
@@ -30,10 +29,10 @@ CREATE TABLE user (
 
 -- 미팅 테이블
 CREATE TABLE meeting (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 미팅 고유 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 미팅 고유 ID
     title VARCHAR(200) NOT NULL,                                       -- 미팅 제목
     description TEXT,                                                   -- 미팅 설명
-    leader_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,    -- 미팅 주최자 ID
+    leader_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE,  -- 미팅 주최자 ID
     group_size INTEGER NOT NULL CHECK (group_size >= 2 AND group_size <= 10), -- 그룹 크기 (2-10명)
     min_age INTEGER NOT NULL CHECK (min_age >= 18),                    -- 선호 최소 나이
     max_age INTEGER NOT NULL CHECK (max_age >= min_age),               -- 선호 최대 나이
@@ -48,9 +47,9 @@ CREATE TABLE meeting (
 
 -- 미팅 참가자 테이블
 CREATE TABLE meeting_member (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 참가자 고유 ID
-    meeting_id UUID NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 미팅 ID
-    user_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,      -- 참가자 사용자 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 참가자 고유 ID
+    meeting_id BIGINT NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 미팅 ID
+    user_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE,    -- 참가자 사용자 ID
     role VARCHAR(20) DEFAULT 'member' CHECK (role IN ('leader', 'member')), -- 역할 (리더/멤버)
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,     -- 참가 일시
     is_confirmed BOOLEAN DEFAULT false,                                -- 참가 확정 여부
@@ -59,11 +58,11 @@ CREATE TABLE meeting_member (
 
 -- 매칭 요청 테이블
 CREATE TABLE matching_request (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 매칭 요청 고유 ID
-    meeting_id UUID NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 요청하는 미팅 ID
-    target_meeting_id UUID NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 요청받는 미팅 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 매칭 요청 고유 ID
+    meeting_id BIGINT NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 요청하는 미팅 ID
+    target_meeting_id BIGINT NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 요청받는 미팅 ID
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')), -- 요청 상태
-    requester_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE, -- 요청자 사용자 ID
+    requester_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE, -- 요청자 사용자 ID
     message TEXT,                                                      -- 요청 메시지
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,    -- 요청 일시
     expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours'), -- 만료 일시 (24시간 후)
@@ -73,9 +72,9 @@ CREATE TABLE matching_request (
 
 -- 매칭된 미팅 테이블
 CREATE TABLE matched_meeting (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 매칭 고유 ID
-    meeting1_id UUID NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 첫 번째 미팅 ID
-    meeting2_id UUID NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 두 번째 미팅 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 매칭 고유 ID
+    meeting1_id BIGINT NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 첫 번째 미팅 ID
+    meeting2_id BIGINT NOT NULL REFERENCES meeting(id) ON DELETE CASCADE, -- 두 번째 미팅 ID
     matched_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,    -- 매칭 성사 일시
     status VARCHAR(20) DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')), -- 매칭 상태
     meeting_location TEXT,                                             -- 실제 만날 장소
@@ -87,8 +86,8 @@ CREATE TABLE matched_meeting (
 
 -- 채팅방 테이블
 CREATE TABLE chat_room (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 채팅방 고유 ID
-    matched_meeting_id UUID NOT NULL REFERENCES matched_meeting(id) ON DELETE CASCADE, -- 매칭된 미팅 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 채팅방 고유 ID
+    matched_meeting_id BIGINT NOT NULL REFERENCES matched_meeting(id) ON DELETE CASCADE, -- 매칭된 미팅 ID
     name VARCHAR(200),                                                 -- 채팅방 이름
     type VARCHAR(20) DEFAULT 'group' CHECK (type IN ('group', 'private')), -- 채팅방 타입 (그룹/개인)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,    -- 채팅방 생성일
@@ -98,9 +97,9 @@ CREATE TABLE chat_room (
 
 -- 메시지 테이블
 CREATE TABLE message (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 메시지 고유 ID
-    chat_room_id UUID NOT NULL REFERENCES chat_room(id) ON DELETE CASCADE, -- 채팅방 ID
-    sender_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,    -- 발신자 사용자 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 메시지 고유 ID
+    chat_room_id BIGINT NOT NULL REFERENCES chat_room(id) ON DELETE CASCADE, -- 채팅방 ID
+    sender_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE,  -- 발신자 사용자 ID
     content TEXT NOT NULL,                                             -- 메시지 내용
     message_type VARCHAR(20) DEFAULT 'text' CHECK (message_type IN ('text', 'image', 'file', 'system')), -- 메시지 타입
     metadata JSONB DEFAULT '{}',                                       -- 메시지 메타데이터 (JSON)
@@ -111,8 +110,8 @@ CREATE TABLE message (
 
 -- 티켓 테이블
 CREATE TABLE ticket (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 티켓 고유 ID
-    user_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,      -- 티켓 소유자 사용자 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 티켓 고유 ID
+    user_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE,    -- 티켓 소유자 사용자 ID
     ticket_type VARCHAR(20) DEFAULT 'meeting' CHECK (ticket_type IN ('meeting', 'bonus', 'mission')), -- 티켓 타입
     amount INTEGER NOT NULL CHECK (amount > 0),                       -- 티켓 개수
     source VARCHAR(50) NOT NULL,                                      -- 티켓 획득 출처
@@ -125,7 +124,7 @@ CREATE TABLE ticket (
 
 -- 미션 테이블
 CREATE TABLE mission (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 미션 고유 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 미션 고유 ID
     title VARCHAR(200) NOT NULL,                                       -- 미션 제목
     description TEXT NOT NULL,                                         -- 미션 설명
     mission_type VARCHAR(20) NOT NULL CHECK (mission_type IN ('daily', 'weekly', 'special', 'achievement')), -- 미션 타입
@@ -137,9 +136,9 @@ CREATE TABLE mission (
 
 -- 사용자 미션 테이블
 CREATE TABLE user_mission (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 사용자 미션 고유 ID
-    user_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,      -- 사용자 ID
-    mission_id UUID NOT NULL REFERENCES mission(id) ON DELETE CASCADE, -- 미션 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 사용자 미션 고유 ID
+    user_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE,    -- 사용자 ID
+    mission_id BIGINT NOT NULL REFERENCES mission(id) ON DELETE CASCADE, -- 미션 ID
     status VARCHAR(20) DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed', 'claimed')), -- 미션 상태
     progress INTEGER DEFAULT 0 CHECK (progress >= 0),                 -- 현재 진행도
     max_progress INTEGER NOT NULL CHECK (max_progress > 0),           -- 목표 진행도
@@ -151,10 +150,10 @@ CREATE TABLE user_mission (
 
 -- 리뷰 테이블
 CREATE TABLE review (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 리뷰 고유 ID
-    reviewer_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,  -- 리뷰 작성자 사용자 ID
-    reviewee_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,  -- 리뷰 대상자 사용자 ID
-    matched_meeting_id UUID NOT NULL REFERENCES matched_meeting(id) ON DELETE CASCADE, -- 매칭된 미팅 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 리뷰 고유 ID
+    reviewer_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE, -- 리뷰 작성자 사용자 ID
+    reviewee_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE, -- 리뷰 대상자 사용자 ID
+    matched_meeting_id BIGINT NOT NULL REFERENCES matched_meeting(id) ON DELETE CASCADE, -- 매칭된 미팅 ID
     rating DECIMAL(3,2) NOT NULL CHECK (rating >= 1 AND rating <= 5), -- 평점 (1-5점)
     comment TEXT,                                                      -- 리뷰 코멘트
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,    -- 리뷰 작성 일시
@@ -164,8 +163,8 @@ CREATE TABLE review (
 
 -- 알림 테이블
 CREATE TABLE notification (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 알림 고유 ID
-    user_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,      -- 알림 받을 사용자 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 알림 고유 ID
+    user_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE,    -- 알림 받을 사용자 ID
     title VARCHAR(200) NOT NULL,                                       -- 알림 제목
     message TEXT NOT NULL,                                             -- 알림 내용
     notification_type VARCHAR(20) NOT NULL CHECK (notification_type IN ('matching', 'message', 'mission', 'review', 'system')), -- 알림 타입
@@ -176,9 +175,9 @@ CREATE TABLE notification (
 
 -- 신고 테이블
 CREATE TABLE report (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                    -- 신고 고유 ID
-    reporter_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE,  -- 신고자 사용자 ID
-    reported_user_id UUID NOT NULL REFERENCES user(id) ON DELETE CASCADE, -- 신고당한 사용자 ID
+    id BIGSERIAL PRIMARY KEY,                                           -- 신고 고유 ID
+    reporter_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE, -- 신고자 사용자 ID
+    reported_user_id BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE, -- 신고당한 사용자 ID
     report_type VARCHAR(20) NOT NULL CHECK (report_type IN ('harassment', 'inappropriate', 'fake_profile', 'spam', 'other')), -- 신고 타입
     reason TEXT NOT NULL,                                              -- 신고 사유
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'investigating', 'resolved', 'dismissed')), -- 신고 처리 상태
@@ -200,13 +199,13 @@ CREATE INDEX idx_meeting_region ON meeting(preferred_region);
 CREATE INDEX idx_meeting_created_at ON meeting(created_at);
 CREATE INDEX idx_meeting_expires_at ON meeting(expires_at);
 
-CREATE INDEX idx_meeting_members_meeting ON meeting_members(meeting_id);
-CREATE INDEX idx_meeting_members_user ON meeting_members(user_id);
+CREATE INDEX idx_meeting_member_meeting ON meeting_member(meeting_id);
+CREATE INDEX idx_meeting_member_user ON meeting_member(user_id);
 
-CREATE INDEX idx_matching_requests_meeting ON matching_requests(meeting_id);
-CREATE INDEX idx_matching_requests_target ON matching_requests(target_meeting_id);
-CREATE INDEX idx_matching_requests_status ON matching_requests(status);
-CREATE INDEX idx_matching_requests_created_at ON matching_requests(created_at);
+CREATE INDEX idx_matching_request_meeting ON matching_request(meeting_id);
+CREATE INDEX idx_matching_request_target ON matching_request(target_meeting_id);
+CREATE INDEX idx_matching_request_status ON matching_request(status);
+CREATE INDEX idx_matching_request_created_at ON matching_request(created_at);
 
 CREATE INDEX idx_matched_meeting_meeting1 ON matched_meeting(meeting1_id);
 CREATE INDEX idx_matched_meeting_meeting2 ON matched_meeting(meeting2_id);
@@ -310,14 +309,14 @@ CREATE TRIGGER update_ticket_count_after_update
     EXECUTE FUNCTION update_ticket_count();
 
 -- 기본 데이터 삽입
-INSERT INTO mission (title, description, mission_type, reward_ticket, requirements) VALUES
+INSERT INTO mission (title, description, mission_type, reward_tickets, requirements) VALUES
 ('일일 출석', '매일 앱에 접속하세요', 'daily', 1, '{"type": "login", "count": 1}'),
 ('첫 프로필 완성', '프로필을 100% 완성하세요', 'achievement', 5, '{"type": "profile_complete"}'),
 ('첫 미팅 신청', '첫 번째 미팅을 신청하세요', 'achievement', 3, '{"type": "first_meeting"}'),
 ('리뷰 작성', '미팅 후 리뷰를 작성하세요', 'special', 2, '{"type": "write_review", "count": 1}');
 
 -- 초기 관리자 계정 (비밀번호: admin123)
-INSERT INTO user (username, email, password_hash, name, age, gender, region) VALUES
+INSERT INTO "user" (username, email, password_hash, name, age, gender, region) VALUES
 ('admin', 'admin@groume.com', crypt('admin123', gen_salt('bf')), '관리자', 30, 'male', '서울');
 
 COMMENT ON TABLE user IS '사용자 정보';

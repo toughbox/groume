@@ -1,62 +1,58 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Provider } from 'react-redux';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { store } from './src/store';
 import { LoginScreen } from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
 import { DashboardScreen } from './src/screens/DashboardScreenSimple';
 import { CreateMeetingScreen } from './src/screens/CreateMeetingScreen';
-import { User } from './src/types';
+import { useAppSelector } from './src/hooks/useAppDispatch';
 
-export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [currentScreen, setCurrentScreen] = useState<'dashboard' | 'createMeeting'>('dashboard');
+// 네비게이션 타입 정의
+export type RootStackParamList = {
+  Login: undefined;
+  Register: undefined;
+  Dashboard: undefined;
+  CreateMeeting: undefined;
+};
 
-  const handleLogin = (username: string, password: string) => {
-    // 임시 로그인 로직 - 실제로는 API 호출
-    const mockUser = {
-      id: '1',
-      username: username,
-      email: `${username}@example.com`,
-      profileImage: undefined,
-      age: 25,
-      gender: 'male' as const,
-      region: '서울',
-      interests: ['영화', '맛집', '여행'],
-      createdAt: new Date().toISOString(),
-    };
-    
-    setUser(mockUser);
-    setIsAuthenticated(true);
-  };
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
-  const handleCreateMeeting = () => {
-    setCurrentScreen('createMeeting');
-  };
-
-  const handleBackToDashboard = () => {
-    setCurrentScreen('dashboard');
-  };
-
-  const handleMeetingCreated = (meetingData: any) => {
-    console.log('새 미팅 생성:', meetingData);
-    setCurrentScreen('dashboard');
-  };
+// 메인 네비게이션 컴포넌트
+function MainNavigator() {
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="auto" />
-              {!isAuthenticated ? (
-          <LoginScreen onLogin={handleLogin} />
-        ) : user ? (
-          currentScreen === 'dashboard' ? (
-            <DashboardScreen user={user} onCreateMeeting={handleCreateMeeting} />
-          ) : (
-            <CreateMeetingScreen 
-              onBack={handleBackToDashboard} 
-              onCreateMeeting={handleMeetingCreated}
-            />
-          )
-        ) : null}
-    </SafeAreaProvider>
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!isAuthenticated ? (
+          // 인증되지 않은 사용자용 스크린
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+          </>
+        ) : (
+          // 인증된 사용자용 스크린
+          <>
+            <Stack.Screen name="Dashboard" component={DashboardScreen} />
+            <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
+          </>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <Provider store={store}>
+      <SafeAreaProvider>
+        <StatusBar style="auto" />
+        <MainNavigator />
+      </SafeAreaProvider>
+    </Provider>
   );
 }
