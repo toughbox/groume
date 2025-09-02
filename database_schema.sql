@@ -2,7 +2,7 @@
 -- 생성일: 2024년
 
 -- groume 스키마 생성
-CREATE SCHEMA IF NOT EXISTS groume;
+--CREATE SCHEMA IF NOT EXISTS groume;
 
 -- 확장 기능 활성화
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -254,63 +254,7 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_user_updated_at BEFORE UPDATE ON groume.user FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_meeting_updated_at BEFORE UPDATE ON groume.meeting FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 트리거 함수: 사용자 평점 업데이트
-CREATE OR REPLACE FUNCTION update_user_rating()
-RETURNS TRIGGER AS $$
-BEGIN
-    UPDATE groume.user 
-    SET 
-        rating = (
-            SELECT COALESCE(AVG(rating), 0) 
-            FROM groume.review 
-            WHERE reviewee_id = NEW.reviewee_id
-        ),
-        rating_count = (
-            SELECT COUNT(*) 
-            FROM groume.review 
-            WHERE reviewee_id = NEW.reviewee_id
-        )
-    WHERE id = NEW.reviewee_id;
-    
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- 리뷰 생성 시 평점 업데이트 트리거
-CREATE TRIGGER update_rating_after_review 
-    AFTER INSERT ON groume.review 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_user_rating();
-
--- 트리거 함수: 티켓 개수 업데이트
-CREATE OR REPLACE FUNCTION update_ticket_count()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF TG_OP = 'INSERT' THEN
-        UPDATE groume.user 
-        SET ticket_count = ticket_count + NEW.amount 
-        WHERE id = NEW.user_id;
-        RETURN NEW;
-    ELSIF TG_OP = 'UPDATE' AND OLD.is_used = false AND NEW.is_used = true THEN
-        UPDATE groume.user 
-        SET ticket_count = ticket_count - NEW.amount 
-        WHERE id = NEW.user_id;
-        RETURN NEW;
-    END IF;
-    RETURN NULL;
-END;
-$$ language 'plpgsql';
-
--- 티켓 변경 시 개수 업데이트 트리거
-CREATE TRIGGER update_ticket_count_after_insert 
-    AFTER INSERT ON groume.ticket 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_ticket_count();
-
-CREATE TRIGGER update_ticket_count_after_update 
-    AFTER UPDATE ON groume.ticket 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_ticket_count();
+-- 비즈니스 로직 트리거 제거됨 (백엔드에서 처리)
 
 -- 기본 데이터 삽입
 INSERT INTO groume.mission (title, description, mission_type, reward_tickets, requirements) VALUES
