@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 
 // 사용자 정보 타입
 export interface User {
-  id: number;
+  id: string;  // 백엔드에서 string으로 반환
   username: string;
   email: string;
   name: string;
@@ -10,14 +10,14 @@ export interface User {
   gender: 'male' | 'female';
   region: string;
   phone?: string;
-  profileImageUrl?: string;
+  profile_image_url?: string;  // 백엔드 snake_case에 맞춤
   bio?: string;
-  interests: string[];
-  ticketCount: number;
-  rating: number;
-  ratingCount: number;
-  createdAt: string;
-  isActive: boolean;
+  interests?: string[];  // 선택적 필드로 변경
+  ticket_count: number;  // 백엔드 snake_case에 맞춤
+  rating: string;  // 백엔드에서 decimal string으로 반환
+  rating_count: number;  // 백엔드 snake_case에 맞춤
+  created_at: string;  // 백엔드 snake_case에 맞춤
+  is_active?: boolean;  // 선택적 필드로 변경
 }
 
 // 회원가입 요청 데이터 타입
@@ -57,13 +57,21 @@ const initialState: AuthState = {
   isAuthenticated: false,
 };
 
+// API 베이스 URL 설정
+// React Native에서 localhost 대신 실제 IP 주소 사용
+const API_BASE_URL = __DEV__ 
+  ? 'http://192.168.206.171:3030/api'  // 개발 환경: 실제 IP 주소 사용
+  : 'https://api.groume.com/api'; // 프로덕션 환경: 실제 서버 URL
+
 // 비동기 액션: 회원가입
 export const registerUser = createAsyncThunk(
   'auth/register',
   async (userData: RegisterRequest, { rejectWithValue }) => {
     try {
-      // TODO: 실제 API 호출로 교체
-      const response = await fetch('/api/auth/register', {
+      console.log('🚀 회원가입 API 호출:', `${API_BASE_URL}/auth/register`);
+      console.log('📤 전송 데이터:', userData);
+      
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -71,14 +79,19 @@ export const registerUser = createAsyncThunk(
         body: JSON.stringify(userData),
       });
 
+      console.log('📥 응답 상태:', response.status, response.statusText);
+
       if (!response.ok) {
         const error = await response.json();
+        console.log('❌ API 오류 응답:', error);
         return rejectWithValue(error.message || '회원가입에 실패했습니다.');
       }
 
       const data = await response.json();
+      console.log('✅ 회원가입 성공:', data);
       return data;
     } catch (error) {
+      console.log('❌ 네트워크 오류:', error);
       return rejectWithValue('네트워크 오류가 발생했습니다.');
     }
   }
@@ -89,8 +102,7 @@ export const loginUser = createAsyncThunk(
   'auth/login',
   async (credentials: LoginRequest, { rejectWithValue }) => {
     try {
-      // TODO: 실제 API 호출로 교체
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -116,8 +128,7 @@ export const logoutUser = createAsyncThunk(
   'auth/logout',
   async (_, { rejectWithValue }) => {
     try {
-      // TODO: 실제 API 호출로 교체 (서버에서 토큰 무효화)
-      const response = await fetch('/api/auth/logout', {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
       });
 
@@ -166,6 +177,7 @@ const authSlice = createSlice({
       })
       .addCase(registerUser.fulfilled, (state, action) => {
         state.isLoading = false;
+        // 백엔드 응답 구조에 맞게 수정
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.isAuthenticated = true;

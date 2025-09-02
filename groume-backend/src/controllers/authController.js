@@ -51,17 +51,37 @@ class AuthController {
         expires_at: null
       });
 
+      // JWT 토큰 생성 (회원가입 시에도 자동 로그인)
+      const jwt = require('jsonwebtoken');
+      const token = jwt.sign(
+        { 
+          userId: user.id, 
+          username: user.username,
+          email: user.email 
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      );
+
       res.status(201).json({
         success: true,
         message: '회원가입이 완료되었습니다. 환영 티켓 5개가 지급되었습니다!',
-        data: {
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            name: user.name
-          }
-        }
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          name: user.name,
+          age: user.age,
+          gender: user.gender,
+          region: user.region,
+          phone: user.phone,
+          bio: user.bio,
+          ticket_count: user.ticket_count,
+          rating: user.rating,
+          rating_count: user.rating_count,
+          created_at: user.created_at
+        },
+        token: token
       });
 
     } catch (error) {

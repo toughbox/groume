@@ -42,7 +42,12 @@ app.use(helmet({
 
 // CORS 설정
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || ['http://localhost:19006', 'http://localhost:3030'],
+  origin: process.env.CORS_ORIGIN || [
+    'http://localhost:19006', 
+    'http://localhost:3030',
+    'http://192.168.206.171:19006',  // React Native 개발 서버
+    'http://192.168.206.171:3030'    // 백엔드 서버 IP
+  ],
   credentials: true,
   optionsSuccessStatus: 200
 }));

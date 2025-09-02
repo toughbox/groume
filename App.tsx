@@ -37,7 +37,9 @@ function MainNavigator() {
         ) : (
           // 인증된 사용자용 스크린
           <>
-            <Stack.Screen name="Dashboard" component={DashboardScreen} />
+            <Stack.Screen name="Dashboard">
+              {(props) => <DashboardScreen {...props} onCreateMeeting={() => props.navigation.navigate('CreateMeeting')} />}
+            </Stack.Screen>
             <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
           </>
         )}

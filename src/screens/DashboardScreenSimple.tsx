@@ -11,23 +11,22 @@ import {
 import { Button, Card, Avatar, Badge } from 'react-native-elements';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface User {
-  id: string;
-  username: string;
-  profileImage?: string;
-}
+import { User } from '../store/authSlice';
+import { useAppSelector } from '../hooks/useAppDispatch';
 
 interface DashboardScreenProps {
-  user: User;
-  onCreateMeeting: () => void;
+  onCreateMeeting?: () => void;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
-  user,
   onCreateMeeting,
 }) => {
+  // Redux에서 user 상태 가져오기
+  const { user } = useAppSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
-  const [ticketCount, setTicketCount] = useState(3);
+  
+  // 백엔드에서 받은 실제 티켓 개수 사용
+  const ticketCount = user?.ticket_count || 0;
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -42,7 +41,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   };
 
   const handleCompleteMission = () => {
-    setTicketCount(prev => prev + 1);
+    // TODO: 실제 API 호출로 미션 완료 처리
     Alert.alert('미션 완료!', '매칭 이용권 1개를 획득했습니다.');
   };
 
@@ -60,12 +59,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             <Avatar
               size="medium"
               rounded
-              title={user.username.charAt(0).toUpperCase()}
-              source={user.profileImage ? { uri: user.profileImage } : undefined}
+              title={user?.username?.charAt(0).toUpperCase() || 'U'}
+              source={user?.profile_image_url ? { uri: user.profile_image_url } : undefined}
               containerStyle={styles.avatar}
             />
             <View style={styles.welcomeContainer}>
-              <Text style={styles.welcomeText}>안녕하세요, {user.username}님!</Text>
+              <Text style={styles.welcomeText}>안녕하세요, {user?.username || '사용자'}님!</Text>
               <Text style={styles.subText}>오늘도 좋은 만남을 찾아보세요</Text>
             </View>
           </View>
