@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const authMiddleware = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -70,8 +70,8 @@ const updateProfileValidation = [
   
   body('age')
     .optional()
-    .isInt({ min: 18, max: 100 })
-    .withMessage('나이는 18세 이상 100세 이하여야 합니다.'),
+    .isInt({ min: 20, max: 100 })
+    .withMessage('나이는 20세 이상 100세 이하여야 합니다.'),
   
   body('region')
     .optional()

@@ -10,23 +10,31 @@ import {
 } from 'react-native';
 import { Button, Input, Slider } from 'react-native-elements';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDispatch, useSelector } from 'react-redux';
+import { createMeeting, selectMatchingLoading, selectMatchingError } from '../store/matchingSlice';
+import { AppDispatch } from '../store';
+import { CreateMeetingRequest } from '../types';
 
 interface CreateMeetingScreenProps {
   onBack: () => void;
-  onCreateMeeting: (meetingData: any) => void;
+  onSuccess?: () => void;
 }
 
 export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({ 
   onBack, 
-  onCreateMeeting 
+  onSuccess 
 }) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const loading = useSelector(selectMatchingLoading);
+  const error = useSelector(selectMatchingError);
+
   const [meetingTitle, setMeetingTitle] = useState('');
   const [description, setDescription] = useState('');
   const [groupSize, setGroupSize] = useState(3);
   const [ageRange, setAgeRange] = useState([22, 30]);
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedStyle, setSelectedStyle] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [preferredDates, setPreferredDates] = useState<string[]>([]);
 
   const regions = ['서울', '경기', '인천', '대전', '세종', '충북', '충남', '부산', '대구', '울산', '경북', '경남', '광주', '전북', '전남', '제주'];
   const meetingPlaces = ['카페', '술집', '식당', '기타'];
@@ -37,25 +45,24 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const meetingData = {
-        title: meetingTitle,
-        description,
-        groupSize: `${groupSize}:${groupSize}`,
-        ageRange: `${ageRange[0]}-${ageRange[1]}세`,
-        region: selectedRegion,
-        style: selectedStyle,
-        createdAt: new Date().toISOString(),
-      };
+    const meetingData: CreateMeetingRequest = {
+      title: meetingTitle,
+      description,
+      group_size: groupSize,
+      min_age: ageRange[0],
+      max_age: ageRange[1],
+      preferred_region: selectedRegion,
+      meeting_place: selectedStyle,
+      preferred_dates: preferredDates,
+    };
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      onCreateMeeting(meetingData);
-      Alert.alert('성공', '미팅 신청이 완료되었습니다!');
+    try {
+      await dispatch(createMeeting(meetingData)).unwrap();
+      Alert.alert('성공', '미팅이 성공적으로 생성되었습니다!', [
+        { text: '확인', onPress: onSuccess || onBack }
+      ]);
     } catch (error) {
-      Alert.alert('오류', '미팅 신청 중 오류가 발생했습니다.');
-    } finally {
-      setIsLoading(false);
+      Alert.alert('오류', error as string || '미팅 생성 중 오류가 발생했습니다.');
     }
   };
 
@@ -197,7 +204,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           <Button
             title="미팅 신청하기"
             onPress={handleSubmit}
-            loading={isLoading}
+            loading={loading}
             buttonStyle={styles.submitButton}
             titleStyle={styles.submitButtonText}
           />

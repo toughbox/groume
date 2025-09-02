@@ -28,7 +28,7 @@ DB_USER=postgres
 DB_PASSWORD=your_password
 JWT_SECRET=your_super_secret_jwt_key
 JWT_EXPIRES_IN=24h
-PORT=3000
+PORT=3030
 NODE_ENV=development
 CLIENT_URL=http://localhost:19006
 ```
@@ -82,7 +82,7 @@ npm start
 
 ### 회원가입 테스트
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
+curl -X POST http://localhost:3030/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -97,7 +97,7 @@ curl -X POST http://localhost:3000/api/auth/register \
 
 ### 로그인 테스트
 ```bash
-curl -X POST http://localhost:3000/api/auth/login \
+curl -X POST http://localhost:3030/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -107,7 +107,7 @@ curl -X POST http://localhost:3000/api/auth/login \
 
 ### 프로필 조회 테스트
 ```bash
-curl -X GET http://localhost:3000/api/users/profile \
+curl -X GET http://localhost:3030/api/users/profile \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -126,9 +126,9 @@ curl -X GET http://localhost:3000/api/users/profile \
 
 React Native 앱에서 서버 API를 호출할 때:
 
-1. **로컬 개발**: `http://localhost:3000`
-2. **안드로이드 에뮬레이터**: `http://10.0.2.2:3000`
-3. **iOS 시뮬레이터**: `http://localhost:3000`
+1. **로컬 개발**: `http://localhost:3030`
+2. **안드로이드 에뮬레이터**: `http://10.0.2.2:3030`
+3. **iOS 시뮬레이터**: `http://localhost:3030`
 4. **실제 디바이스**: 컴퓨터의 실제 IP 주소 사용
 
 ### 에러 응답 형식

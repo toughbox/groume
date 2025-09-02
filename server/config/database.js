@@ -35,7 +35,11 @@ const testConnection = async () => {
     client.release();
   } catch (err) {
     console.error('❌ 데이터베이스 연결 실패:', err.message);
-    process.exit(1);
+    console.log('⚠️ 개발 모드에서는 데이터베이스 없이도 서버가 실행됩니다.');
+    // 개발 환경에서는 서버를 종료하지 않음
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
   }
 };
 

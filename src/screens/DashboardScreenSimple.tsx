@@ -7,6 +7,7 @@ import {
   RefreshControl,
   Alert,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { Button, Card, Avatar, Badge } from 'react-native-elements';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,10 +17,16 @@ import { useAppSelector } from '../hooks/useAppDispatch';
 
 interface DashboardScreenProps {
   onCreateMeeting?: () => void;
+  onViewMeetings?: () => void;
+  onViewRequests?: () => void;
+  onViewMyMeetings?: () => void;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onCreateMeeting,
+  onViewMeetings,
+  onViewRequests,
+  onViewMyMeetings,
 }) => {
   // Redux에서 user 상태 가져오기
   const { user } = useAppSelector((state) => state.auth);
@@ -96,45 +103,55 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           )}
         </Card>
 
-        {/* 진행 중인 매칭 */}
+        {/* 매칭 기능 메뉴 */}
         <Card containerStyle={styles.matchingCard}>
-          <Text style={styles.sectionTitle}>진행 중인 매칭</Text>
+          <Text style={styles.sectionTitle}>매칭 관리</Text>
+          <Text style={styles.sectionSubtitle}>미팅을 만들고 매칭 요청을 관리해보세요</Text>
           
-          <View style={styles.matchingItem}>
-            <View style={styles.matchingHeader}>
-              <Badge value="매칭 완료" status="success" />
-              <Text style={styles.matchingType}>3:3</Text>
-            </View>
-            <Text style={styles.matchingDescription}>멋진 상대방을 찾았어요!</Text>
-            <View style={styles.matchingDetails}>
-              <Text style={styles.detailText}>지역: 강남구</Text>
-              <Text style={styles.detailText}>상대방 평균 나이: 25세</Text>
-            </View>
-            <Button
-              title="자세히 보기"
-              type="outline"
-              buttonStyle={styles.detailButton}
-              titleStyle={styles.detailButtonText}
-              onPress={() => Alert.alert('준비 중', '매칭 상세 페이지를 준비 중입니다.')}
-            />
-          </View>
+          <View style={styles.menuGrid}>
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={onViewMeetings}
+            >
+              <View style={styles.menuIconContainer}>
+                <Text style={styles.menuIcon}>🔍</Text>
+              </View>
+              <Text style={styles.menuTitle}>미팅 찾기</Text>
+              <Text style={styles.menuSubtitle}>매칭 가능한 미팅 보기</Text>
+            </TouchableOpacity>
 
-          <View style={styles.matchingItem}>
-            <View style={styles.matchingHeader}>
-              <Badge value="매칭 대기" status="warning" />
-              <Text style={styles.matchingType}>5:5</Text>
-            </View>
-            <Text style={styles.matchingDescription}>적합한 상대방을 찾고 있어요</Text>
-            <View style={styles.matchingDetails}>
-              <Text style={styles.detailText}>지역: 홍대</Text>
-            </View>
-            <Button
-              title="자세히 보기"
-              type="outline"
-              buttonStyle={styles.detailButton}
-              titleStyle={styles.detailButtonText}
-              onPress={() => Alert.alert('준비 중', '매칭 상세 페이지를 준비 중입니다.')}
-            />
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={onViewMyMeetings}
+            >
+              <View style={styles.menuIconContainer}>
+                <Text style={styles.menuIcon}>📋</Text>
+              </View>
+              <Text style={styles.menuTitle}>내 미팅</Text>
+              <Text style={styles.menuSubtitle}>생성한 미팅 관리</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={onViewRequests}
+            >
+              <View style={styles.menuIconContainer}>
+                <Text style={styles.menuIcon}>💌</Text>
+              </View>
+              <Text style={styles.menuTitle}>매칭 요청</Text>
+              <Text style={styles.menuSubtitle}>받은/보낸 요청 확인</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={onCreateMeeting}
+            >
+              <View style={styles.menuIconContainer}>
+                <Text style={styles.menuIcon}>➕</Text>
+              </View>
+              <Text style={styles.menuTitle}>미팅 생성</Text>
+              <Text style={styles.menuSubtitle}>새로운 미팅 만들기</Text>
+            </TouchableOpacity>
           </View>
         </Card>
 
@@ -451,5 +468,50 @@ const styles = StyleSheet.create({
   },
   bottomSpace: {
     height: 20,
+  },
+  menuGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  menuItem: {
+    flex: 1,
+    minWidth: '47%',
+    backgroundColor: '#F8F9FA',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  menuIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  menuIcon: {
+    fontSize: 24,
+  },
+  menuTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2C3E50',
+    textAlign: 'center',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
 });

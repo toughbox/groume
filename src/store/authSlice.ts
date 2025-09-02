@@ -60,7 +60,7 @@ const initialState: AuthState = {
 // API 베이스 URL 설정
 // React Native에서 localhost 대신 실제 IP 주소 사용
 const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.206.171:3030/api'  // 개발 환경: 실제 IP 주소 사용
+  ? 'http://192.168.0.19:3030/api'  // 개발 환경: 실제 IP 주소와 포트 사용
   : 'https://api.groume.com/api'; // 프로덕션 환경: 실제 서버 URL
 
 // 비동기 액션: 회원가입
@@ -102,6 +102,9 @@ export const loginUser = createAsyncThunk(
   'auth/login',
   async (credentials: LoginRequest, { rejectWithValue }) => {
     try {
+      console.log('🚀 로그인 API 호출:', `${API_BASE_URL}/auth/login`);
+      console.log('📤 전송 데이터:', credentials);
+      
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
@@ -110,14 +113,19 @@ export const loginUser = createAsyncThunk(
         body: JSON.stringify(credentials),
       });
 
+      console.log('📥 응답 상태:', response.status, response.statusText);
+
       if (!response.ok) {
         const error = await response.json();
+        console.log('❌ API 오류 응답:', error);
         return rejectWithValue(error.message || '로그인에 실패했습니다.');
       }
 
       const data = await response.json();
+      console.log('✅ 로그인 성공:', data);
       return data;
     } catch (error) {
+      console.log('❌ 네트워크 오류:', error);
       return rejectWithValue('네트워크 오류가 발생했습니다.');
     }
   }

@@ -28,8 +28,9 @@ const authMiddleware = (req, res, next) => {
     // JWT 토큰 검증
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // 요청 객체에 사용자 ID 추가
-    req.userId = decoded.userId;
+    // 요청 객체에 사용자 정보 추가
+    req.user = { id: decoded.userId };
+    req.userId = decoded.userId; // 하위 호환성을 위해 유지
     
     next();
 
@@ -57,4 +58,7 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-module.exports = authMiddleware;
+module.exports = {
+  authenticateToken: authMiddleware,
+  authMiddleware
+};

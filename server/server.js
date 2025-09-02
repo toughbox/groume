@@ -8,6 +8,7 @@ require('dotenv').config();
 // 라우터 import
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
+const matchingRoutes = require('./routes/matching');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,6 +42,7 @@ app.use(express.urlencoded({ extended: true }));
 // API 라우트
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/matching', matchingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
