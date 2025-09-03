@@ -8,6 +8,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const reviewRoutes = require('./routes/reviews');
 const ticketRoutes = require('./routes/tickets');
+const matchingRoutes = require('./routes/matching');
 
 // Express 앱 생성
 const app = express();
@@ -79,6 +80,7 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/matching', matchingRoutes);
 
 // 루트 경로
 app.get('/', (req, res) => {

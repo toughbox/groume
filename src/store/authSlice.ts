@@ -60,7 +60,8 @@ const initialState: AuthState = {
 // API 베이스 URL 설정
 // React Native에서 localhost 대신 실제 IP 주소 사용
 const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.0.19:3030/api'  // 개발 환경: 실제 IP 주소와 포트 사용
+  ? 'http://192.168.206.171:3030/api'  // 개발 환경: 실제 IP 주소와 포트 사용
+  //? 'http://192.168.0.19:3030/api'
   : 'https://api.groume.com/api'; // 프로덕션 환경: 실제 서버 URL
 
 // 비동기 액션: 회원가입
@@ -205,8 +206,9 @@ const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
+        // 백엔드 응답 구조: { success, message, data: { user, token } }
+        state.user = action.payload.data.user;
+        state.token = action.payload.data.token;
         state.isAuthenticated = true;
         state.error = null;
       })
