@@ -77,10 +77,12 @@ router.post('/meetings', authenticateToken, async (req, res) => {
 });
 
 /**
- * 미팅 목록 조회 (2번 구현: 참가자 수 포함)
+ * 미팅 목록 조회 (성별별 참가자 수 포함)
  */
 router.get('/meetings', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.userId;
+    
     const meetingsResult = await query(`
       SELECT 
         m.*,
@@ -89,22 +91,44 @@ router.get('/meetings', authenticateToken, async (req, res) => {
         TIMEZONE('Asia/Seoul', m.created_at) as created_at_kst,
         TIMEZONE('Asia/Seoul', m.updated_at) as updated_at_kst,
         TIMEZONE('Asia/Seoul', m.expires_at) as expires_at_kst,
-        COUNT(mm.user_id) as current_members
+        COALESCE(member_stats.current_members, 0) as current_members,
+        COALESCE(member_stats.male_count, 0) as male_count,
+        COALESCE(member_stats.female_count, 0) as female_count,
+        EXISTS(
+          SELECT 1 FROM groume.meeting_member mm_check 
+          WHERE mm_check.meeting_id = m.id 
+          AND mm_check.user_id = $1 
+          AND mm_check.is_confirmed = true
+        ) as is_joined
       FROM groume.meeting m
       JOIN groume."user" u ON m.leader_id = u.id
-      LEFT JOIN groume.meeting_member mm ON m.id = mm.meeting_id AND mm.is_confirmed = true
+      LEFT JOIN (
+        SELECT 
+          mm.meeting_id,
+          COUNT(mm.user_id) as current_members,
+          COUNT(CASE WHEN member_user.gender = 'male' THEN 1 END) as male_count,
+          COUNT(CASE WHEN member_user.gender = 'female' THEN 1 END) as female_count
+        FROM groume.meeting_member mm
+        JOIN groume."user" member_user ON mm.user_id = member_user.id
+        WHERE mm.is_confirmed = true
+        GROUP BY mm.meeting_id
+      ) member_stats ON m.id = member_stats.meeting_id
       WHERE m.status = 'active'
-      GROUP BY m.id, u.username, u.name
       ORDER BY m.created_at DESC
-    `);
+    `, [userId]);
 
     // 시간 데이터를 한국 시간으로 변환
-    const meetings = meetingsResult.rows.map(meeting => ({
-      ...meeting,
-      created_at: meeting.created_at_kst,
-      updated_at: meeting.updated_at_kst,
-      expires_at: meeting.expires_at_kst
-    }));
+    const meetings = meetingsResult.rows.map(meeting => {
+      console.log(`🔍 미팅 ${meeting.id}: male_count=${meeting.male_count}, female_count=${meeting.female_count}, current_members=${meeting.current_members}`);
+      return {
+        ...meeting,
+        created_at: meeting.created_at_kst,
+        updated_at: meeting.updated_at_kst,
+        expires_at: meeting.expires_at_kst,
+        male_count: parseInt(meeting.male_count) || 0,
+        female_count: parseInt(meeting.female_count) || 0
+      };
+    });
 
     res.json({
       success: true,
@@ -133,15 +157,26 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
 
     // 트랜잭션으로 안전하게 처리
     const result = await transaction(async (client) => {
-      // 1. 미팅 정보 조회 (현재 참가자 수 포함)
+      // 1. 미팅 정보 조회 (성별별 참가자 수 포함)
       const meetingResult = await client.query(`
         SELECT 
           m.*,
-          COUNT(mm.user_id) as current_members
+          COALESCE(member_stats.current_members, 0) as current_members,
+          COALESCE(member_stats.male_count, 0) as male_count,
+          COALESCE(member_stats.female_count, 0) as female_count
         FROM groume.meeting m
-        LEFT JOIN groume.meeting_member mm ON m.id = mm.meeting_id AND mm.is_confirmed = true
+        LEFT JOIN (
+          SELECT 
+            mm.meeting_id,
+            COUNT(mm.user_id) as current_members,
+            COUNT(CASE WHEN member_user.gender = 'male' THEN 1 END) as male_count,
+            COUNT(CASE WHEN member_user.gender = 'female' THEN 1 END) as female_count
+          FROM groume.meeting_member mm
+          JOIN groume."user" member_user ON mm.user_id = member_user.id
+          WHERE mm.is_confirmed = true AND mm.meeting_id = $1
+          GROUP BY mm.meeting_id
+        ) member_stats ON m.id = member_stats.meeting_id
         WHERE m.id = $1 AND m.status = 'active'
-        GROUP BY m.id
       `, [meetingId]);
 
       if (meetingResult.rows.length === 0) {
@@ -171,14 +206,34 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
         throw new Error('참가 인원이 가득 찼습니다.');
       }
 
-      // 5. 사용자 나이 확인
+      // 5. 사용자 정보 확인 (나이, 성별)
       const userResult = await client.query(`
-        SELECT age FROM groume."user" WHERE id = $1
+        SELECT age, gender FROM groume."user" WHERE id = $1
       `, [userId]);
 
-      const userAge = userResult.rows[0].age;
+      const user = userResult.rows[0];
+      const userAge = user.age;
+      const userGender = user.gender;
+
+      // 나이 조건 확인
       if (userAge < meeting.min_age || userAge > meeting.max_age) {
         throw new Error(`나이 조건에 맞지 않습니다. (${meeting.min_age}세 ~ ${meeting.max_age}세)`);
+      }
+
+      // 6. 남녀 비율 확인
+      const groupSize = parseInt(meeting.group_size);
+      const currentMaleCount = parseInt(meeting.male_count) || 0;
+      const currentFemaleCount = parseInt(meeting.female_count) || 0;
+      
+      console.log(`👥 현재 참가자: 남성 ${currentMaleCount}명, 여성 ${currentFemaleCount}명 (그룹크기: ${groupSize})`);
+      
+      // 각 성별 최대 인원은 group_size명
+      if (userGender === 'male' && currentMaleCount >= groupSize) {
+        throw new Error(`남성 참가자가 가득 찼습니다. (현재: 남성 ${currentMaleCount}명 / ${groupSize}명)`);
+      }
+      
+      if (userGender === 'female' && currentFemaleCount >= groupSize) {
+        throw new Error(`여성 참가자가 가득 찼습니다. (현재: 여성 ${currentFemaleCount}명 / ${groupSize}명)`);
       }
 
       // 6. 참가 신청 추가
@@ -190,15 +245,26 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
 
       console.log('✅ 미팅 참가 신청 완료:', joinResult.rows[0]);
 
-      // 7. 업데이트된 미팅 정보 반환
+      // 7. 업데이트된 미팅 정보 반환 (성별별 참가자 수 포함)
       const updatedMeetingResult = await client.query(`
         SELECT 
           m.*,
-          COUNT(mm.user_id) as current_members
+          COALESCE(member_stats.current_members, 0) as current_members,
+          COALESCE(member_stats.male_count, 0) as male_count,
+          COALESCE(member_stats.female_count, 0) as female_count
         FROM groume.meeting m
-        LEFT JOIN groume.meeting_member mm ON m.id = mm.meeting_id AND mm.is_confirmed = true
+        LEFT JOIN (
+          SELECT 
+            mm.meeting_id,
+            COUNT(mm.user_id) as current_members,
+            COUNT(CASE WHEN member_user.gender = 'male' THEN 1 END) as male_count,
+            COUNT(CASE WHEN member_user.gender = 'female' THEN 1 END) as female_count
+          FROM groume.meeting_member mm
+          JOIN groume."user" member_user ON mm.user_id = member_user.id
+          WHERE mm.is_confirmed = true AND mm.meeting_id = $1
+          GROUP BY mm.meeting_id
+        ) member_stats ON m.id = member_stats.meeting_id
         WHERE m.id = $1
-        GROUP BY m.id
       `, [meetingId]);
 
       return updatedMeetingResult.rows[0];

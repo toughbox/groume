@@ -4,16 +4,104 @@ const Joi = require('joi');
 
 // 회원가입 검증 스키마
 const registerSchema = Joi.object({
-  username: Joi.string().alphanum().min(3).max(50).required(),
-  email: Joi.string().email().required(),
-  password: Joi.string().min(8).max(100).required(), // 프론트엔드와 맞춤 (8자)
-  name: Joi.string().min(2).max(100).required(),
-  age: Joi.number().integer().min(18).max(100).required(),
-  gender: Joi.string().valid('male', 'female').required(),
-  region: Joi.string().max(50).required(),
-  phone: Joi.string().max(20).optional().allow(''), // 빈 문자열 허용
-  bio: Joi.string().max(1000).optional().allow(''), // 빈 문자열 허용
-  interests: Joi.array().items(Joi.string()).optional().default([]) // 기본값 설정
+  // 아이디: 영문 + 숫자만 허용, 3-20자
+  username: Joi.string()
+    .pattern(/^[a-zA-Z0-9]+$/)
+    .min(3)
+    .max(20)
+    .required()
+    .messages({
+      'string.pattern.base': '아이디는 영문과 숫자만 입력 가능합니다.',
+      'string.min': '아이디는 최소 3자 이상이어야 합니다.',
+      'string.max': '아이디는 최대 20자까지 입력 가능합니다.'
+    }),
+  
+  // 이메일: 영문 이메일 형식
+  email: Joi.string()
+    .email()
+    .pattern(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/)
+    .required()
+    .messages({
+      'string.email': '올바른 이메일 형식을 입력해주세요.',
+      'string.pattern.base': '이메일은 영문으로만 입력 가능합니다.'
+    }),
+  
+  // 비밀번호: 8-50자, 영문+숫자+특수문자 조합
+  password: Joi.string()
+    .min(8)
+    .max(50)
+    .pattern(/^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/)
+    .required()
+    .messages({
+      'string.min': '비밀번호는 최소 8자 이상이어야 합니다.',
+      'string.max': '비밀번호는 최대 50자까지 입력 가능합니다.',
+      'string.pattern.base': '비밀번호는 영문, 숫자, 특수문자를 포함해야 합니다.'
+    }),
+  
+  // 이름: 한글만 허용, 2-10자
+  name: Joi.string()
+    .pattern(/^[가-힣]+$/)
+    .min(2)
+    .max(10)
+    .required()
+    .messages({
+      'string.pattern.base': '이름은 한글만 입력 가능합니다.',
+      'string.min': '이름은 최소 2자 이상이어야 합니다.',
+      'string.max': '이름은 최대 10자까지 입력 가능합니다.'
+    }),
+  
+  // 나이: 18-100세
+  age: Joi.number()
+    .integer()
+    .min(18)
+    .max(100)
+    .required()
+    .messages({
+      'number.min': '나이는 18세 이상이어야 합니다.',
+      'number.max': '나이는 100세 이하여야 합니다.',
+      'number.integer': '나이는 정수로 입력해주세요.'
+    }),
+  
+  // 성별
+  gender: Joi.string()
+    .valid('male', 'female')
+    .required()
+    .messages({
+      'any.only': '성별을 선택해주세요.'
+    }),
+  
+  // 지역
+  region: Joi.string()
+    .max(50)
+    .required()
+    .messages({
+      'string.empty': '지역을 선택해주세요.'
+    }),
+  
+  // 전화번호: 숫자와 하이픈만 허용 (선택사항)
+  phone: Joi.string()
+    .pattern(/^[0-9-]+$/)
+    .max(20)
+    .optional()
+    .allow('')
+    .messages({
+      'string.pattern.base': '전화번호는 숫자와 하이픈(-)만 입력 가능합니다.'
+    }),
+  
+  // 자기소개 (선택사항)
+  bio: Joi.string()
+    .max(500)
+    .optional()
+    .allow('')
+    .messages({
+      'string.max': '자기소개는 최대 500자까지 입력 가능합니다.'
+    }),
+  
+  // 관심사 (선택사항)
+  interests: Joi.array()
+    .items(Joi.string())
+    .optional()
+    .default([])
 });
 
 // 로그인 검증 스키마

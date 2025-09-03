@@ -56,6 +56,8 @@ export interface Meeting {
   leader_profile_image?: string;
   leader_rating?: number;
   current_members?: number; // 현재 참가자 수 추가
+  male_count?: number; // 남성 참가자 수
+  female_count?: number; // 여성 참가자 수
   remaining_slots?: number; // 남은 자리 수
   is_joined?: boolean; // 내가 참가했는지 여부
 }

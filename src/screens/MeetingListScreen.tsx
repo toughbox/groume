@@ -100,6 +100,20 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
       return;
     }
 
+    // 남녀 비율 확인
+    const maleCount = meeting.male_count || 0;
+    const femaleCount = meeting.female_count || 0;
+    
+    if (user.gender === 'male' && maleCount >= meeting.group_size) {
+      Alert.alert('알림', `남성 참가자가 가득 찼습니다.\n(현재: 남성 ${maleCount}명 / ${meeting.group_size}명)`);
+      return;
+    }
+    
+    if (user.gender === 'female' && femaleCount >= meeting.group_size) {
+      Alert.alert('알림', `여성 참가자가 가득 찼습니다.\n(현재: 여성 ${femaleCount}명 / ${meeting.group_size}명)`);
+      return;
+    }
+
     Alert.alert(
       '미팅 참가',
       `"${meeting.title}" 미팅에 참가하시겠습니까?`,
@@ -158,6 +172,16 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
     const maxMembers = meeting.group_size * 2;
     const isFull = (meeting.current_members || 0) >= maxMembers;
     const isAgeMatch = user && user.age >= meeting.min_age && user.age <= meeting.max_age;
+    
+    // 남녀 비율 체크
+    const maleCount = meeting.male_count || 0;
+    const femaleCount = meeting.female_count || 0;
+    const userGender = user?.gender;
+    const isGenderFull = userGender === 'male' 
+      ? maleCount >= meeting.group_size
+      : userGender === 'female' 
+        ? femaleCount >= meeting.group_size
+        : false;
 
     return (
       <Card containerStyle={styles.card}>
@@ -182,9 +206,11 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
                 styles.memberCount,
                 isFull ? styles.fullMemberCount : styles.availableMemberCount
               ]}>
-                {meeting.current_members || 0}/{meeting.group_size * 2}
+                남성:{meeting.male_count || 0} / 여성:{meeting.female_count || 0}
               </Text>
-              <Text style={styles.memberLabel}>명</Text>
+              <Text style={styles.memberLabel}>
+                ({meeting.current_members || 0}/{meeting.group_size * 2}명)
+              </Text>
             </View>
           </View>
 
@@ -238,17 +264,18 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
               <Button
                 title={
                   isFull ? '정원 마감' :
+                  isGenderFull ? `${userGender === 'male' ? '남성' : '여성'} 자리 마감` :
                   !isAgeMatch ? '나이 조건 불충족' :
                   joiningMeetingId === meeting.id ? '참가 중...' : '참가 신청'
                 }
                 buttonStyle={[
                   styles.actionButton,
-                  isFull || !isAgeMatch ? styles.disabledButton : styles.joinButton
+                  isFull || isGenderFull || !isAgeMatch ? styles.disabledButton : styles.joinButton
                 ]}
                 titleStyle={[
-                  isFull || !isAgeMatch ? styles.disabledButtonText : styles.joinButtonText
+                  isFull || isGenderFull || !isAgeMatch ? styles.disabledButtonText : styles.joinButtonText
                 ]}
-                disabled={isFull || !isAgeMatch || joiningMeetingId === meeting.id}
+                disabled={isFull || isGenderFull || !isAgeMatch || joiningMeetingId === meeting.id}
                 loading={joiningMeetingId === meeting.id}
                 onPress={() => handleJoinMeeting(meeting)}
               />

@@ -79,47 +79,85 @@ const RegisterScreen: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: Partial<RegisterFormData> = {};
 
-    // 필수 필드 검증
+    // 아이디 검증 (영문+숫자만, 3-20자)
     if (!formData.username.trim()) {
       newErrors.username = '아이디를 입력해주세요';
+    } else if (!/^[a-zA-Z0-9]+$/.test(formData.username)) {
+      newErrors.username = '아이디는 영문과 숫자만 입력 가능합니다';
     } else if (formData.username.length < 3) {
-      newErrors.username = '아이디는 3자 이상이어야 합니다';
+      newErrors.username = '아이디는 최소 3자 이상이어야 합니다';
+    } else if (formData.username.length > 20) {
+      newErrors.username = '아이디는 최대 20자까지 입력 가능합니다';
     }
 
+    // 이메일 검증 (영문 이메일만)
     if (!formData.email.trim()) {
       newErrors.email = '이메일을 입력해주세요';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = '올바른 이메일 형식을 입력해주세요';
+    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email)) {
+      newErrors.email = '이메일은 영문으로만 입력 가능합니다';
     }
 
+    // 비밀번호 검증 (영문+숫자+특수문자, 8-50자)
     if (!formData.password) {
       newErrors.password = '비밀번호를 입력해주세요';
     } else if (formData.password.length < 8) {
-      newErrors.password = '비밀번호는 8자 이상이어야 합니다';
+      newErrors.password = '비밀번호는 최소 8자 이상이어야 합니다';
+    } else if (formData.password.length > 50) {
+      newErrors.password = '비밀번호는 최대 50자까지 입력 가능합니다';
+    } else if (!/^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/.test(formData.password)) {
+      newErrors.password = '비밀번호는 영문, 숫자, 특수문자(@$!%*?&)를 포함해야 합니다';
     }
 
+    // 비밀번호 확인
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = '비밀번호 확인을 입력해주세요';
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = '비밀번호가 일치하지 않습니다';
     }
 
+    // 이름 검증 (한글만, 2-10자)
     if (!formData.name.trim()) {
       newErrors.name = '이름을 입력해주세요';
+    } else if (!/^[가-힣]+$/.test(formData.name)) {
+      newErrors.name = '이름은 한글만 입력 가능합니다';
+    } else if (formData.name.length < 2) {
+      newErrors.name = '이름은 최소 2자 이상이어야 합니다';
+    } else if (formData.name.length > 10) {
+      newErrors.name = '이름은 최대 10자까지 입력 가능합니다';
     }
 
+    // 나이 검증 (숫자만, 18-100세)
     if (!formData.age) {
       newErrors.age = '나이를 입력해주세요';
-    } else if (parseInt(formData.age) < 18 || parseInt(formData.age) > 100) {
-      newErrors.age = '나이는 18세 이상 100세 이하여야 합니다';
+    } else if (!/^\d+$/.test(formData.age)) {
+      newErrors.age = '나이는 숫자만 입력 가능합니다';
+    } else {
+      const ageNum = parseInt(formData.age);
+      if (ageNum < 18) {
+        newErrors.age = '나이는 18세 이상이어야 합니다';
+      } else if (ageNum > 100) {
+        newErrors.age = '나이는 100세 이하여야 합니다';
+      }
     }
 
+    // 성별 검증
     if (!formData.gender) {
-      newErrors.gender = '성별을 선택해주세요';
+      newErrors.gender = '성별을 선택해주세요' as any;
     }
 
+    // 지역 검증
     if (!formData.region) {
       newErrors.region = '지역을 선택해주세요';
+    }
+
+    // 전화번호 검증 (선택사항, 숫자와 하이픈만)
+    if (formData.phone && !/^[0-9-]+$/.test(formData.phone)) {
+      newErrors.phone = '전화번호는 숫자와 하이픈(-)만 입력 가능합니다';
+    }
+
+    // 자기소개 길이 검증 (선택사항, 최대 500자)
+    if (formData.bio && formData.bio.length > 500) {
+      newErrors.bio = '자기소개는 최대 500자까지 입력 가능합니다';
     }
 
     setErrors(newErrors);
@@ -127,7 +165,46 @@ const RegisterScreen: React.FC = () => {
   };
 
   const handleInputChange = (field: keyof RegisterFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    let filteredValue = value;
+
+    // 필드별 실시간 입력 제한 (한글 입력 조합 과정 고려)
+    switch (field) {
+      case 'username':
+        // 아이디: 영문+숫자만, 최대 20자
+        filteredValue = value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
+        break;
+      case 'email':
+        // 이메일: 영문+숫자+특수문자(@.-_+%), 최대 100자
+        filteredValue = value.replace(/[^a-zA-Z0-9@.\-_+%]/g, '').slice(0, 100);
+        break;
+      case 'name':
+        // 이름: 한글만, 최대 10자 (한글 조합 과정 허용)
+        // 완성된 한글만 체크하지 않고 길이만 제한
+        filteredValue = value.slice(0, 10);
+        break;
+      case 'age':
+        // 나이: 숫자만, 최대 3자리
+        filteredValue = value.replace(/[^0-9]/g, '').slice(0, 3);
+        break;
+      case 'phone':
+        // 전화번호: 숫자와 하이픈만, 최대 20자
+        filteredValue = value.replace(/[^0-9-]/g, '').slice(0, 20);
+        break;
+      case 'bio':
+        // 자기소개: 최대 500자
+        filteredValue = value.slice(0, 500);
+        break;
+      case 'password':
+      case 'confirmPassword':
+        // 비밀번호: 영문+숫자+특수문자(@$!%*?&), 최대 50자
+        filteredValue = value.replace(/[^A-Za-z\d@$!%*?&]/g, '').slice(0, 50);
+        break;
+      default:
+        filteredValue = value;
+    }
+
+    setFormData(prev => ({ ...prev, [field]: filteredValue }));
+    
     // 에러가 있다면 입력 시 제거
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
@@ -202,7 +279,8 @@ const RegisterScreen: React.FC = () => {
               style={[styles.input, errors.username && styles.inputError]}
               value={formData.username}
               onChangeText={(value) => handleInputChange('username', value)}
-              placeholder="3자 이상의 아이디를 입력하세요"
+              placeholder="영문+숫자 3-20자 (예: user123)"
+              maxLength={20}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -216,7 +294,8 @@ const RegisterScreen: React.FC = () => {
               style={[styles.input, errors.email && styles.inputError]}
               value={formData.email}
               onChangeText={(value) => handleInputChange('email', value)}
-              placeholder="example@groume.com"
+              placeholder="영문 이메일 (예: user@example.com)"
+              maxLength={100}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -231,7 +310,8 @@ const RegisterScreen: React.FC = () => {
               style={[styles.input, errors.password && styles.inputError]}
               value={formData.password}
               onChangeText={(value) => handleInputChange('password', value)}
-              placeholder="8자 이상의 비밀번호"
+              placeholder="영문+숫자+특수문자 8-50자"
+              maxLength={50}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -247,6 +327,7 @@ const RegisterScreen: React.FC = () => {
               value={formData.confirmPassword}
               onChangeText={(value) => handleInputChange('confirmPassword', value)}
               placeholder="비밀번호를 다시 입력하세요"
+              maxLength={50}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -261,8 +342,9 @@ const RegisterScreen: React.FC = () => {
               style={[styles.input, errors.name && styles.inputError]}
               value={formData.name}
               onChangeText={(value) => handleInputChange('name', value)}
-              placeholder="실명을 입력하세요"
-              autoCapitalize="words"
+              placeholder="한글 이름 2-10자 (예: 홍길동)"
+              maxLength={10}
+              autoCapitalize="none"
             />
             {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
           </View>
@@ -274,8 +356,9 @@ const RegisterScreen: React.FC = () => {
               style={[styles.input, errors.age && styles.inputError]}
               value={formData.age}
               onChangeText={(value) => handleInputChange('age', value)}
-              placeholder="만 나이를 입력하세요"
-              keyboardType="numeric"
+              placeholder="만 나이 18-100세 (예: 25)"
+              maxLength={3}
+              keyboardType="number-pad"
             />
             {errors.age && <Text style={styles.errorText}>{errors.age}</Text>}
           </View>
@@ -310,26 +393,35 @@ const RegisterScreen: React.FC = () => {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>전화번호</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.phone && styles.inputError]}
               value={formData.phone}
               onChangeText={(value) => handleInputChange('phone', value)}
-              placeholder="010-1234-5678 (선택사항)"
+              placeholder="숫자+하이픈 (예: 010-1234-5678)"
+              maxLength={20}
               keyboardType="phone-pad"
             />
+            {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
           </View>
 
           {/* 자기소개 (선택) */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>자기소개</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, errors.bio && styles.inputError]}
               value={formData.bio}
               onChangeText={(value) => handleInputChange('bio', value)}
-              placeholder="간단한 자기소개를 작성해주세요 (선택사항)"
+              placeholder="자기소개 최대 500자 (선택사항)"
+              maxLength={500}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
             />
+            {formData.bio && (
+              <Text style={[styles.errorText, { color: '#666' }]}>
+                {formData.bio.length}/500자
+              </Text>
+            )}
+            {errors.bio && <Text style={styles.errorText}>{errors.bio}</Text>}
           </View>
 
           {/* 회원가입 버튼 */}
