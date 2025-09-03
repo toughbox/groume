@@ -3,6 +3,11 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query, transaction } = require('../config/database');
 
+// 한국 시간 헬퍼 함수
+const getKoreanTime = () => {
+  return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' });
+};
+
 /**
  * 새 미팅 생성
  */
@@ -35,10 +40,18 @@ router.post('/meetings', authenticateToken, async (req, res) => {
     const newMeeting = meetingResult.rows[0];
     console.log('✅ 미팅 DB 저장 완료:', newMeeting);
 
+    // 한국 시간으로 변환하여 응답
+    const meetingWithKST = {
+      ...newMeeting,
+      created_at: new Date(newMeeting.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+      updated_at: new Date(newMeeting.updated_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+      expires_at: new Date(newMeeting.expires_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+    };
+
     res.status(201).json({
       success: true,
       message: '미팅이 성공적으로 생성되었습니다.',
-      data: newMeeting
+      data: meetingWithKST
     });
 
   } catch (error) {
@@ -59,17 +72,28 @@ router.get('/meetings', authenticateToken, async (req, res) => {
       SELECT 
         m.*,
         u.username as leader_username,
-        u.name as leader_name
+        u.name as leader_name,
+        TIMEZONE('Asia/Seoul', m.created_at) as created_at_kst,
+        TIMEZONE('Asia/Seoul', m.updated_at) as updated_at_kst,
+        TIMEZONE('Asia/Seoul', m.expires_at) as expires_at_kst
       FROM groume.meeting m
       JOIN groume."user" u ON m.leader_id = u.id
       WHERE m.status = 'active'
       ORDER BY m.created_at DESC
     `);
 
+    // 시간 데이터를 한국 시간으로 변환
+    const meetings = meetingsResult.rows.map(meeting => ({
+      ...meeting,
+      created_at: meeting.created_at_kst,
+      updated_at: meeting.updated_at_kst,
+      expires_at: meeting.expires_at_kst
+    }));
+
     res.json({
       success: true,
       message: '미팅 목록을 성공적으로 조회했습니다.',
-      data: meetingsResult.rows
+      data: meetings
     });
 
   } catch (error) {

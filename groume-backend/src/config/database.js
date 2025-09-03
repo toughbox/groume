@@ -11,7 +11,8 @@ const pool = new Pool({
   max: 20, // 최대 연결 수
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
-  schema: process.env.DB_SCHEMA || 'groume'
+  schema: process.env.DB_SCHEMA || 'groume',
+  options: '-c timezone=Asia/Seoul' // 한국 시간대 설정
 });
 
 // 데이터베이스 연결 테스트
