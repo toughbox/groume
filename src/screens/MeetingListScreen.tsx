@@ -10,10 +10,12 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, SearchBar, Card, Avatar } from 'react-native-elements';
+import { Button, SearchBar, Card, Avatar, Badge } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchMeetings,
+  joinMeeting,
+  leaveMeeting,
   sendMatchingRequest,
   selectMeetings,
   selectMeetingsLoading,
@@ -24,6 +26,7 @@ import {
 } from '../store/matchingSlice';
 import { AppDispatch } from '../store';
 import { Meeting } from '../types';
+import { useAppSelector } from '../hooks/useAppDispatch';
 
 interface MeetingListScreenProps {
   onBack: () => void;
@@ -39,9 +42,11 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
   const loading = useSelector(selectMeetingsLoading);
   const error = useSelector(selectMatchingError);
   const filters = useSelector(selectFilters);
+  const { user } = useAppSelector((state) => state.auth);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMeeting, setSelectedMeeting] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [joiningMeetingId, setJoiningMeetingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadMeetings();
@@ -59,176 +64,254 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
   };
 
   const handleRefresh = () => {
+    setRefreshing(true);
     loadMeetings();
+    setTimeout(() => setRefreshing(false), 1000);
   };
 
-  const handleMatchingRequest = async (meeting: Meeting, myMeetingId: string) => {
-    if (!myMeetingId) {
-      Alert.alert('알림', '먼저 미팅을 생성해주세요.');
+  const handleJoinMeeting = async (meeting: Meeting) => {
+    if (!user) {
+      Alert.alert('알림', '로그인이 필요합니다.');
       return;
     }
 
-    Alert.prompt(
-      '매칭 요청',
-      '상대방에게 보낼 메시지를 입력하세요:',
+    // 자신의 미팅인지 확인
+    if (meeting.leader_id === user.id) {
+      Alert.alert('알림', '자신이 생성한 미팅에는 참가할 수 없습니다.');
+      return;
+    }
+
+    // 이미 참가한 미팅인지 확인
+    if (meeting.is_joined) {
+      Alert.alert('알림', '이미 참가한 미팅입니다.');
+      return;
+    }
+
+    // 정원이 가득 찬 경우
+    if ((meeting.current_members || 0) >= meeting.group_size) {
+      Alert.alert('알림', '참가 인원이 가득 찼습니다.');
+      return;
+    }
+
+    // 나이 조건 확인
+    if (user.age < meeting.min_age || user.age > meeting.max_age) {
+      Alert.alert('알림', `나이 조건에 맞지 않습니다. (${meeting.min_age}세 ~ ${meeting.max_age}세)`);
+      return;
+    }
+
+    Alert.alert(
+      '미팅 참가',
+      `"${meeting.title}" 미팅에 참가하시겠습니까?`,
       [
         { text: '취소', style: 'cancel' },
         {
-          text: '전송',
-          onPress: async (message) => {
+          text: '참가',
+          onPress: async () => {
+            setJoiningMeetingId(meeting.id);
             try {
-              await dispatch(sendMatchingRequest({
-                meeting_id: myMeetingId,
-                target_meeting_id: meeting.id,
-                message: message || '',
-              })).unwrap();
-              
-              Alert.alert('성공', '매칭 요청을 성공적으로 보냈습니다!');
+              await dispatch(joinMeeting(meeting.id)).unwrap();
+              Alert.alert('성공', '미팅 참가가 완료되었습니다!');
+              loadMeetings(); // 목록 새로고침
             } catch (error) {
-              Alert.alert('오류', error as string || '매칭 요청에 실패했습니다.');
+              Alert.alert('오류', error as string || '미팅 참가에 실패했습니다.');
+            } finally {
+              setJoiningMeetingId(null);
             }
           },
         },
-      ],
-      'plain-text'
+      ]
     );
   };
 
-  const filteredMeetings = meetings.filter(meeting =>
+  const handleLeaveMeeting = async (meeting: Meeting) => {
+    Alert.alert(
+      '참가 취소',
+      `"${meeting.title}" 미팅 참가를 취소하시겠습니까?`,
+      [
+        { text: '아니오', style: 'cancel' },
+        {
+          text: '예',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(leaveMeeting(meeting.id)).unwrap();
+              Alert.alert('완료', '미팅 참가가 취소되었습니다.');
+              loadMeetings(); // 목록 새로고침
+            } catch (error) {
+              Alert.alert('오류', error as string || '참가 취소에 실패했습니다.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const filteredMeetings = meetings.filter((meeting) =>
     meeting.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     meeting.preferred_region.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const renderMeetingCard = ({ item }: { item: Meeting }) => (
-    <Card containerStyle={styles.cardContainer}>
-      <TouchableOpacity
-        onPress={() => onMeetingPress?.(item)}
-        style={styles.cardContent}
-      >
-        {/* 헤더 */}
-        <View style={styles.cardHeader}>
+  const renderMeetingItem = ({ item: meeting }: { item: Meeting }) => {
+    const isMyMeeting = user && meeting.leader_id === user.id;
+    const isJoined = meeting.is_joined;
+    const isFull = (meeting.current_members || 0) >= meeting.group_size;
+    const isAgeMatch = user && user.age >= meeting.min_age && user.age <= meeting.max_age;
+
+    return (
+      <Card containerStyle={styles.card}>
+        <TouchableOpacity 
+          onPress={() => onMeetingPress?.(meeting)}
+          activeOpacity={0.7}
+        >
+          {/* 미팅 헤더 */}
+          <View style={styles.cardHeader}>
+            <View style={styles.titleContainer}>
+              <Text style={styles.meetingTitle}>{meeting.title}</Text>
+              {isMyMeeting && (
+                <Badge
+                  value="내 미팅"
+                  badgeStyle={styles.myMeetingBadge}
+                  textStyle={styles.badgeText}
+                />
+              )}
+            </View>
+            <View style={styles.memberInfo}>
+              <Text style={[
+                styles.memberCount,
+                isFull ? styles.fullMemberCount : styles.availableMemberCount
+              ]}>
+                {meeting.current_members || 0}/{meeting.group_size}
+              </Text>
+              <Text style={styles.memberLabel}>명</Text>
+            </View>
+          </View>
+
+          {/* 리더 정보 */}
           <View style={styles.leaderInfo}>
             <Avatar
               rounded
-              size="medium"
-              source={
-                item.leader_profile_image
-                  ? { uri: item.leader_profile_image }
-                  : undefined
-              }
-              title={item.leader_name?.[0] || 'U'}
-              containerStyle={styles.avatar}
+              size={30}
+              title={(meeting.leader_name || meeting.leader_username || 'U').charAt(0).toUpperCase()}
+              containerStyle={styles.leaderAvatar}
             />
-            <View style={styles.leaderDetails}>
-              <Text style={styles.leaderName}>{item.leader_name || '익명'}</Text>
-              <Text style={styles.leaderMeta}>
-                {item.leader_age}세 · {item.leader_region} · ⭐ {item.leader_rating?.toFixed(1) || 'N/A'}
-              </Text>
-            </View>
+            <Text style={styles.leaderName}>
+              리더: {meeting.leader_name || meeting.leader_username}
+            </Text>
           </View>
-          <View style={styles.groupSizeBadge}>
-            <Text style={styles.groupSizeText}>{item.group_size}:{item.group_size}</Text>
-          </View>
-        </View>
 
-        {/* 미팅 정보 */}
-        <View style={styles.meetingInfo}>
-          <Text style={styles.meetingTitle}>{item.title}</Text>
-          {item.description && (
-            <Text style={styles.meetingDescription} numberOfLines={2}>
-              {item.description}
+          {/* 미팅 정보 */}
+          <View style={styles.meetingInfo}>
+            <Text style={styles.infoText}>📍 {meeting.preferred_region}</Text>
+            <Text style={styles.infoText}>☕ {meeting.meeting_place}</Text>
+            <Text style={styles.infoText}>👥 나이: {meeting.min_age}~{meeting.max_age}세</Text>
+            <Text style={styles.infoText}>
+              📅 {new Date(meeting.created_at).toLocaleDateString('ko-KR')}
+            </Text>
+          </View>
+
+          {/* 설명 */}
+          {meeting.description && (
+            <Text style={styles.description} numberOfLines={2}>
+              {meeting.description}
             </Text>
           )}
-          
-          <View style={styles.meetingDetails}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>나이대:</Text>
-              <Text style={styles.detailValue}>{item.min_age}-{item.max_age}세</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>지역:</Text>
-              <Text style={styles.detailValue}>{item.preferred_region}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>장소:</Text>
-              <Text style={styles.detailValue}>{item.meeting_place}</Text>
-            </View>
-          </View>
-        </View>
 
-        {/* 액션 버튼 */}
-        <View style={styles.actionContainer}>
-          <Button
-            title="매칭 요청"
-            onPress={() => handleMatchingRequest(item, 'your-meeting-id')} // 실제로는 사용자의 활성 미팅 ID 사용
-            buttonStyle={styles.requestButton}
-            titleStyle={styles.requestButtonText}
-            loading={selectedMeeting === item.id}
-          />
-        </View>
-      </TouchableOpacity>
-    </Card>
+          {/* 액션 버튼 */}
+          <View style={styles.actionButtons}>
+            {isMyMeeting ? (
+              <Button
+                title="내 미팅"
+                buttonStyle={[styles.actionButton, styles.myMeetingButton]}
+                titleStyle={styles.myMeetingButtonText}
+                disabled
+              />
+            ) : isJoined ? (
+              <Button
+                title="참가 취소"
+                buttonStyle={[styles.actionButton, styles.leaveButton]}
+                titleStyle={styles.leaveButtonText}
+                onPress={() => handleLeaveMeeting(meeting)}
+              />
+            ) : (
+              <Button
+                title={
+                  isFull ? '정원 마감' :
+                  !isAgeMatch ? '나이 조건 불충족' :
+                  joiningMeetingId === meeting.id ? '참가 중...' : '참가 신청'
+                }
+                buttonStyle={[
+                  styles.actionButton,
+                  isFull || !isAgeMatch ? styles.disabledButton : styles.joinButton
+                ]}
+                titleStyle={[
+                  isFull || !isAgeMatch ? styles.disabledButtonText : styles.joinButtonText
+                ]}
+                disabled={isFull || !isAgeMatch || joiningMeetingId === meeting.id}
+                loading={joiningMeetingId === meeting.id}
+                onPress={() => handleJoinMeeting(meeting)}
+              />
+            )}
+            
+            <Button
+              title="자세히 보기"
+              buttonStyle={[styles.actionButton, styles.detailButton]}
+              titleStyle={styles.detailButtonText}
+              onPress={() => onMeetingPress?.(meeting)}
+            />
+          </View>
+        </TouchableOpacity>
+      </Card>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyTitle}>미팅이 없습니다</Text>
+      <Text style={styles.emptySubtitle}>새로운 미팅을 만들어보세요!</Text>
+    </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>매칭 가능한 미팅</Text>
-        <View style={styles.placeholder} />
+        <Text style={styles.headerTitle}>미팅 목록</Text>
+        <Button
+          title="뒤로"
+          buttonStyle={styles.backButton}
+          titleStyle={styles.backButtonText}
+          onPress={onBack}
+        />
       </View>
 
-      {/* 검색 바 */}
+      {/* 검색바 */}
       <SearchBar
         placeholder="미팅 제목이나 지역으로 검색..."
         onChangeText={setSearchQuery}
         value={searchQuery}
-        containerStyle={styles.searchBarContainer}
-        inputContainerStyle={styles.searchBarInput}
+        containerStyle={styles.searchContainer}
+        inputContainerStyle={styles.searchInputContainer}
+        inputStyle={styles.searchInput}
         searchIcon={{ color: '#FF6B6B' }}
         clearIcon={{ color: '#FF6B6B' }}
-        platform={Platform.OS}
+        platform={Platform.OS === 'ios' ? 'ios' : 'android'}
       />
-
-      {/* 필터 옵션 (간단한 버전) */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => {
-            // 필터 모달 열기 (향후 구현)
-            Alert.alert('알림', '필터 기능은 곧 추가될 예정입니다.');
-          }}
-        >
-          <Text style={styles.filterButtonText}>🔍 필터</Text>
-        </TouchableOpacity>
-        <Text style={styles.resultCount}>{filteredMeetings.length}개의 미팅</Text>
-      </View>
 
       {/* 미팅 목록 */}
       <FlatList
         data={filteredMeetings}
+        renderItem={renderMeetingItem}
         keyExtractor={(item) => item.id}
-        renderItem={renderMeetingCard}
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl
-            refreshing={loading}
+            refreshing={refreshing}
             onRefresh={handleRefresh}
-            colors={['#FF6B6B']}
             tintColor="#FF6B6B"
           />
         }
+        ListEmptyComponent={!loading ? renderEmptyState : null}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {loading ? '로딩 중...' : '매칭 가능한 미팅이 없습니다.'}
-            </Text>
-          </View>
-        }
       />
     </SafeAreaView>
   );
@@ -243,188 +326,201 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'white',
-    paddingVertical: 15,
     paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  backButton: {
-    padding: 10,
-  },
-  backButtonText: {
-    fontSize: 24,
-    color: '#FF6B6B',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+    paddingVertical: 15,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#2C3E50',
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
-  placeholder: {
-    width: 44,
-  },
-  searchBarContainer: {
-    backgroundColor: 'white',
-    borderTopWidth: 0,
-    borderBottomWidth: 0,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  searchBarInput: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 25,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: 'white',
-  },
-  filterButton: {
-    backgroundColor: '#F8F9FA',
+  backButton: {
+    backgroundColor: '#FF6B6B',
+    borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
-  filterButtonText: {
+  backButtonText: {
     fontSize: 14,
-    color: '#7F8C8D',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+    fontWeight: '500',
   },
-  resultCount: {
-    fontSize: 14,
-    color: '#7F8C8D',
+  searchContainer: {
+    backgroundColor: 'white',
+    borderTopWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  searchInputContainer: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+  },
+  searchInput: {
+    fontSize: 16,
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
   listContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    padding: 15,
   },
-  cardContainer: {
-    borderRadius: 15,
+  card: {
+    borderRadius: 12,
     marginBottom: 15,
+    borderWidth: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    borderWidth: 0,
-  },
-  cardContent: {
-    padding: 0,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
-  leaderInfo: {
+  titleContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-  },
-  avatar: {
-    marginRight: 12,
-  },
-  leaderDetails: {
-    flex: 1,
-  },
-  leaderName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2C3E50',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
-  },
-  leaderMeta: {
-    fontSize: 12,
-    color: '#7F8C8D',
-    marginTop: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
-  },
-  groupSizeBadge: {
-    backgroundColor: '#FF6B6B',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-  },
-  groupSizeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
-  },
-  meetingInfo: {
-    marginBottom: 15,
+    gap: 8,
   },
   meetingTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#2C3E50',
+    flex: 1,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  myMeetingBadge: {
+    backgroundColor: '#FF6B6B',
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  memberInfo: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  memberCount: {
+    fontSize: 20,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  availableMemberCount: {
+    color: '#4CAF50',
+  },
+  fullMemberCount: {
+    color: '#E74C3C',
+  },
+  memberLabel: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  leaderInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  leaderAvatar: {
+    backgroundColor: '#FF6B6B',
+    marginRight: 8,
+  },
+  leaderName: {
+    fontSize: 14,
+    color: '#5D6D7E',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  meetingInfo: {
+    marginBottom: 10,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#5D6D7E',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  description: {
+    fontSize: 14,
+    color: '#5D6D7E',
+    lineHeight: 20,
+    marginBottom: 15,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
+  joinButton: {
+    backgroundColor: '#4CAF50',
+  },
+  joinButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'white',
+  },
+  leaveButton: {
+    backgroundColor: '#E74C3C',
+  },
+  leaveButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'white',
+  },
+  myMeetingButton: {
+    backgroundColor: '#9E9E9E',
+  },
+  myMeetingButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'white',
+  },
+  disabledButton: {
+    backgroundColor: '#BDC3C7',
+  },
+  disabledButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'white',
+  },
+  detailButton: {
+    backgroundColor: '#3498DB',
+  },
+  detailButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'white',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#2C3E50',
     marginBottom: 8,
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
-  meetingDescription: {
-    fontSize: 14,
-    color: '#7F8C8D',
-    marginBottom: 12,
-    lineHeight: 20,
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
-  },
-  meetingDetails: {
-    gap: 4,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: '#7F8C8D',
-    width: 60,
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
-  },
-  detailValue: {
-    fontSize: 14,
-    color: '#2C3E50',
-    fontWeight: '500',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
-  },
-  actionContainer: {
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    paddingTop: 15,
-  },
-  requestButton: {
-    backgroundColor: '#FF6B6B',
-    borderRadius: 10,
-    paddingVertical: 12,
-  },
-  requestButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 50,
-  },
-  emptyText: {
+  emptySubtitle: {
     fontSize: 16,
     color: '#7F8C8D',
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
 });
+
+export default MeetingListScreen;

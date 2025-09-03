@@ -7,26 +7,22 @@ import {
   RefreshControl,
   Alert,
   Platform,
-  TouchableOpacity,
 } from 'react-native';
 import { Button, Card, Avatar, Badge } from 'react-native-elements';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { User } from '../store/authSlice';
 import { useAppSelector } from '../hooks/useAppDispatch';
 
 interface DashboardScreenProps {
   onCreateMeeting?: () => void;
-  onViewMeetings?: () => void;
-  onViewRequests?: () => void;
-  onViewMyMeetings?: () => void;
+  onJoinedMeetings?: () => void; // 참가한 미팅 화면으로 이동
+  onMeetingList?: () => void; // 미팅 목록 화면으로 이동
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onCreateMeeting,
-  onViewMeetings,
-  onViewRequests,
-  onViewMyMeetings,
+  onJoinedMeetings,
+  onMeetingList,
 }) => {
   // Redux에서 user 상태 가져오기
   const { user } = useAppSelector((state) => state.auth);
@@ -85,7 +81,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <View style={styles.ticketContent}>
             <View style={styles.ticketInfo}>
               <Text style={styles.ticketCount}>{ticketCount}</Text>
-              <Text style={styles.ticketLabel}>보유 티켓</Text>
+              <Text style={styles.ticketLabel}>개</Text>
             </View>
             <Button
               title="구매하기"
@@ -94,107 +90,40 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               titleStyle={styles.buyButtonText}
             />
           </View>
-          {ticketCount === 0 && (
+
+          {ticketCount < 3 && (
             <View style={styles.warningContainer}>
               <Text style={styles.warningText}>
-                이용권이 부족해요! 미션을 완료하거나 구매해주세요.
+                ⚠️ 이용권이 부족합니다. 미션을 완료하거나 구매해주세요.
               </Text>
             </View>
           )}
         </Card>
 
-        {/* 매칭 기능 메뉴 */}
-        <Card containerStyle={styles.matchingCard}>
-          <Text style={styles.sectionTitle}>매칭 관리</Text>
-          <Text style={styles.sectionSubtitle}>미팅을 만들고 매칭 요청을 관리해보세요</Text>
-          
-          <View style={styles.menuGrid}>
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={onViewMeetings}
-            >
-              <View style={styles.menuIconContainer}>
-                <Text style={styles.menuIcon}>🔍</Text>
-              </View>
-              <Text style={styles.menuTitle}>미팅 찾기</Text>
-              <Text style={styles.menuSubtitle}>매칭 가능한 미팅 보기</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={onViewMyMeetings}
-            >
-              <View style={styles.menuIconContainer}>
-                <Text style={styles.menuIcon}>📋</Text>
-              </View>
-              <Text style={styles.menuTitle}>내 미팅</Text>
-              <Text style={styles.menuSubtitle}>생성한 미팅 관리</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={onViewRequests}
-            >
-              <View style={styles.menuIconContainer}>
-                <Text style={styles.menuIcon}>💌</Text>
-              </View>
-              <Text style={styles.menuTitle}>매칭 요청</Text>
-              <Text style={styles.menuSubtitle}>받은/보낸 요청 확인</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={onCreateMeeting}
-            >
-              <View style={styles.menuIconContainer}>
-                <Text style={styles.menuIcon}>➕</Text>
-              </View>
-              <Text style={styles.menuTitle}>미팅 생성</Text>
-              <Text style={styles.menuSubtitle}>새로운 미팅 만들기</Text>
-            </TouchableOpacity>
-          </View>
-        </Card>
-
-        {/* 오늘의 미션 */}
+        {/* 미션 카드 */}
         <Card containerStyle={styles.missionCard}>
-          <Text style={styles.sectionTitle}>오늘의 미션</Text>
-          <Text style={styles.sectionSubtitle}>미션을 완료하고 매칭 이용권을 받아보세요!</Text>
-          
-          {/* 완료된 미션 */}
-          <View style={styles.missionItem}>
-            <View style={styles.missionHeader}>
-              <Text style={styles.missionIcon}>•</Text>
-              <View style={styles.missionInfo}>
-                <Text style={styles.missionTitle}>일일 출석 체크</Text>
-                <Text style={styles.missionDesc}>매일 앱에 접속해서 출석하기</Text>
-              </View>
-              <Text style={styles.missionReward}>+1 </Text>
-            </View>
-            <View style={styles.completedContainer}>
-              <Text style={styles.completedText}>완료됨</Text>
-            </View>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>데일리 미션</Text>
+            <Badge
+              value="3"
+              badgeStyle={styles.missionBadge}
+              textStyle={styles.badgeText}
+            />
           </View>
 
           {/* 진행 중인 미션 */}
           <View style={styles.missionItem}>
             <View style={styles.missionHeader}>
-              <Text style={styles.missionIcon}>•</Text>
+              <Text style={styles.missionIcon}>⏰</Text>
               <View style={styles.missionInfo}>
-                <Text style={styles.missionTitle}>친구 초대하기</Text>
-                <Text style={styles.missionDesc}>친구를 앱에 초대해서 가입 완료시키기</Text>
+                <Text style={styles.missionTitle}>프로필 완성하기</Text>
+                <Text style={styles.missionDesc}>자기소개와 관심사를 추가해보세요</Text>
               </View>
-              <Text style={styles.missionReward}>+3 </Text>
+              <Text style={styles.missionReward}>+2 🎫</Text>
             </View>
             <View style={styles.progressContainer}>
-              <Text style={styles.progressText}>진행률: 0/1</Text>
+              <Text style={styles.progressText}>진행률: 2/3</Text>
             </View>
-            <Button
-              title="진행하기"
-              type="outline"
-              buttonStyle={styles.missionButton}
-              titleStyle={styles.missionButtonText}
-              onPress={() => Alert.alert('준비 중', '친구 초대 기능을 준비 중입니다.')}
-            />
           </View>
 
           {/* 완료 가능한 미션 */}
@@ -205,7 +134,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 <Text style={styles.missionTitle}>광고 시청하기</Text>
                 <Text style={styles.missionDesc}>30초 광고를 끝까지 시청하기</Text>
               </View>
-              <Text style={styles.missionReward}>+1 </Text>
+              <Text style={styles.missionReward}>+1 🎫</Text>
             </View>
             <View style={styles.progressContainer}>
               <Text style={styles.progressText}>진행률: 3/3</Text>
@@ -219,13 +148,30 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           </View>
         </Card>
 
-        {/* 새 미팅 신청 버튼 */}
-        <View style={styles.fabContainer}>
+        {/* 액션 버튼들 */}
+        <View style={styles.actionButtonsContainer}>
+          {/* 새 미팅 신청 버튼 */}
           <Button
             title="➕ 새 미팅 신청"
             onPress={onCreateMeeting}
-            buttonStyle={styles.fabButton}
-            titleStyle={styles.fabButtonText}
+            buttonStyle={styles.primaryActionButton}
+            titleStyle={styles.primaryActionButtonText}
+          />
+          
+          {/* 미팅 목록 보기 버튼 */}
+          <Button
+            title="📋 미팅 목록"
+            onPress={onMeetingList}
+            buttonStyle={styles.tertiaryActionButton}
+            titleStyle={styles.tertiaryActionButtonText}
+          />
+          
+          {/* 참가한 미팅 보기 버튼 */}
+          <Button
+            title="👥 참가한 미팅"
+            onPress={onJoinedMeetings}
+            buttonStyle={styles.secondaryActionButton}
+            titleStyle={styles.secondaryActionButtonText}
           />
         </View>
 
@@ -328,71 +274,28 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   warningText: {
-    fontSize: 12,
-    color: '#D32F2F',
+    color: '#E74C3C',
+    fontSize: 14,
     textAlign: 'center',
-  },
-  matchingCard: {
-    borderRadius: 15,
-    margin: 15,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    marginBottom: 5,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#7F8C8D',
-    marginBottom: 15,
-  },
-  matchingItem: {
-    backgroundColor: '#F8F9FA',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  matchingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  matchingType: {
-    fontSize: 14,
-    color: '#7F8C8D',
-  },
-  matchingDescription: {
-    fontSize: 14,
-    color: '#2C3E50',
-    marginBottom: 8,
-  },
-  matchingDetails: {
-    marginBottom: 10,
-  },
-  detailText: {
-    fontSize: 12,
-    color: '#7F8C8D',
-    marginBottom: 2,
-  },
-  detailButton: {
-    borderColor: '#FF6B6B',
-    borderRadius: 8,
-  },
-  detailButtonText: {
-    color: '#FF6B6B',
-    fontSize: 14,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
   missionCard: {
     borderRadius: 15,
     margin: 15,
+    marginTop: 0,
+  },
+  missionBadge: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 10,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   missionItem: {
-    backgroundColor: '#F8F9FA',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   missionHeader: {
     flexDirection: 'row',
@@ -400,8 +303,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   missionIcon: {
-    fontSize: 24,
-    marginRight: 10,
+    fontSize: 20,
+    marginRight: 12,
+    width: 24,
+    textAlign: 'center',
   },
   missionInfo: {
     flex: 1,
@@ -410,108 +315,93 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#2C3E50',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
   missionDesc: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#7F8C8D',
     marginTop: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
   missionReward: {
     fontSize: 14,
     fontWeight: '600',
     color: '#FF6B6B',
-  },
-  completedContainer: {
-    backgroundColor: '#E8F5E8',
-    padding: 8,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  completedText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
   progressContainer: {
-    marginBottom: 8,
+    marginLeft: 36,
+    marginBottom: 10,
   },
   progressText: {
     fontSize: 12,
-    color: '#7F8C8D',
-  },
-  missionButton: {
-    borderColor: '#7F8C8D',
-    borderRadius: 8,
-  },
-  missionButtonText: {
-    color: '#7F8C8D',
-    fontSize: 14,
+    color: '#95A5A6',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
   rewardButton: {
-    backgroundColor: '#4ECDC4',
-    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginLeft: 36,
+    alignSelf: 'flex-start',
   },
   rewardButtonText: {
-    fontSize: 14,
-  },
-  fabContainer: {
-    margin: 15,
-  },
-  fabButton: {
-    backgroundColor: '#FF6B6B',
-    borderRadius: 15,
-    paddingVertical: 15,
-  },
-  fabButtonText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
   },
-  bottomSpace: {
-    height: 20,
-  },
-  menuGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  actionButtonsContainer: {
+    paddingHorizontal: 15,
     gap: 10,
   },
-  menuItem: {
-    flex: 1,
-    minWidth: '47%',
-    backgroundColor: '#F8F9FA',
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  menuIconContainer: {
-    width: 50,
-    height: 50,
+  primaryActionButton: {
+    backgroundColor: '#FF6B6B',
     borderRadius: 25,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingVertical: 15,
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  menuIcon: {
-    fontSize: 24,
-  },
-  menuTitle: {
-    fontSize: 14,
+  primaryActionButtonText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: '#2C3E50',
-    textAlign: 'center',
-    marginBottom: 4,
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
-  menuSubtitle: {
-    fontSize: 12,
-    color: '#7F8C8D',
-    textAlign: 'center',
+  secondaryActionButton: {
+    backgroundColor: '#3498DB',
+    borderRadius: 25,
+    paddingVertical: 15,
+    shadowColor: '#3498DB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  secondaryActionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  tertiaryActionButton: {
+    backgroundColor: '#9B59B6',
+    borderRadius: 25,
+    paddingVertical: 15,
+    shadowColor: '#9B59B6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  tertiaryActionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  bottomSpace: {
+    height: 30,
   },
 });
+
+export default DashboardScreen;

@@ -32,7 +32,7 @@ export interface MatchingTicket {
   used_at?: string;
 }
 
-// 미팅 타입
+// 미팅 타입 (업데이트됨)
 export interface Meeting {
   id: string;
   title: string;
@@ -50,11 +50,14 @@ export interface Meeting {
   expires_at: string;
   // 조인된 정보
   leader_name?: string;
+  leader_username?: string;
   leader_age?: number;
   leader_region?: string;
   leader_profile_image?: string;
   leader_rating?: number;
-  confirmed_members_count?: number;
+  current_members?: number; // 현재 참가자 수 추가
+  remaining_slots?: number; // 남은 자리 수
+  is_joined?: boolean; // 내가 참가했는지 여부
 }
 
 // 미팅 멤버 타입
@@ -65,6 +68,11 @@ export interface MeetingMember {
   role: 'leader' | 'member';
   joined_at: string;
   is_confirmed: boolean;
+  // 사용자 정보
+  username?: string;
+  name?: string;
+  age?: number;
+  gender?: 'male' | 'female';
 }
 
 // 매칭 요청 타입
@@ -162,6 +170,13 @@ export interface RespondToMatchingRequest {
   action: 'accept' | 'reject';
 }
 
+// 미팅 참가 응답 타입 (새로 추가)
+export interface JoinMeetingResponse {
+  meeting: Meeting;
+  current_members: number;
+  remaining_slots: number;
+}
+
 // 네비게이션 타입
 export type RootStackParamList = {
   Login: undefined;
@@ -172,5 +187,6 @@ export type RootStackParamList = {
   MeetingDetail: { meetingId: string };
   MatchingRequests: undefined;
   MyMeetings: undefined;
+  JoinedMeetings: undefined; // 참가한 미팅 목록 추가
   Profile: undefined;
 };

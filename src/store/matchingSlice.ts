@@ -1,10 +1,12 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { 
   Meeting, 
+  MeetingMember,
   MatchingRequest, 
   CreateMeetingRequest, 
   CreateMatchingRequest,
   RespondToMatchingRequest,
+  JoinMeetingResponse,
   ApiResponse,
   PaginatedResponse 
 } from '../types';
@@ -12,7 +14,6 @@ import {
 // API 기본 URL
 const API_BASE_URL = __DEV__ 
   ? 'http://192.168.206.171:3030/api'  // 개발 환경: 실제 IP 주소와 포트 사용
-  //? 'http://192.168.0.19:3030/api'
   : 'https://api.groume.com/api'; // 프로덕션 환경
 
 // 매칭 상태 인터페이스
@@ -20,7 +21,9 @@ interface MatchingState {
   // 미팅 관련
   meetings: Meeting[];
   myMeetings: Meeting[];
+  joinedMeetings: Meeting[]; // 참가한 미팅 목록 추가
   selectedMeeting: Meeting | null;
+  meetingMembers: MeetingMember[]; // 미팅 참가자 목록 추가
   meetingsLoading: boolean;
   
   // 매칭 요청 관련
@@ -44,7 +47,7 @@ interface MatchingState {
     group_size?: number;
   };
   
-  // 로딩 및 에러 상태
+  // 공통
   loading: boolean;
   error: string | null;
 }
@@ -53,7 +56,9 @@ interface MatchingState {
 const initialState: MatchingState = {
   meetings: [],
   myMeetings: [],
+  joinedMeetings: [],
   selectedMeeting: null,
+  meetingMembers: [],
   meetingsLoading: false,
   
   receivedRequests: [],
@@ -102,14 +107,14 @@ export const createMeeting = createAsyncThunk(
 
       console.log('📥 응답 상태:', response.status, response.statusText);
 
-      const result: ApiResponse<{ meeting: Meeting }> = await response.json();
+      const result: ApiResponse<Meeting> = await response.json();
       console.log('📥 응답 데이터:', result);
       
       if (!result.success) {
         return rejectWithValue(result.message || '미팅 생성에 실패했습니다.');
       }
 
-      return result.data!.meeting;
+      return result.data!;
     } catch (error) {
       console.log('❌ 네트워크 오류:', error);
       return rejectWithValue('네트워크 오류가 발생했습니다.');
@@ -146,16 +151,13 @@ export const fetchMeetings = createAsyncThunk(
         },
       });
 
-      const result: PaginatedResponse<Meeting> = await response.json();
+      const result: ApiResponse<Meeting[]> = await response.json();
       
       if (!result.success) {
-        return rejectWithValue('미팅 목록을 불러오는데 실패했습니다.');
+        return rejectWithValue(result.message || '미팅 목록을 불러오는데 실패했습니다.');
       }
 
-      return {
-        meetings: result.data.meetings || [],
-        pagination: result.data.pagination,
-      };
+      return result.data || [];
     } catch (error) {
       return rejectWithValue('네트워크 오류가 발생했습니다.');
     }
@@ -165,48 +167,168 @@ export const fetchMeetings = createAsyncThunk(
 // 내가 생성한 미팅 목록 조회
 export const fetchMyMeetings = createAsyncThunk(
   'matching/fetchMyMeetings',
-  async (params: {
-    page?: number;
-    limit?: number;
-    status?: string;
-  } = {}, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
       const state = getState() as any;
       const token = state.auth.token;
-      const queryParams = new URLSearchParams();
-      
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) {
-          queryParams.append(key, value.toString());
-        }
-      });
 
-      const response = await fetch(`${API_BASE_URL}/matching/my-meetings?${queryParams}`, {
+      const response = await fetch(`${API_BASE_URL}/matching/my-meetings`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
-      const result: PaginatedResponse<Meeting> = await response.json();
+      const result: ApiResponse<Meeting[]> = await response.json();
       
       if (!result.success) {
-        return rejectWithValue('내 미팅 목록을 불러오는데 실패했습니다.');
+        return rejectWithValue(result.message || '내 미팅 목록을 불러오는데 실패했습니다.');
       }
 
-      return result.data.meetings || [];
+      return result.data || [];
     } catch (error) {
       return rejectWithValue('네트워크 오류가 발생했습니다.');
     }
   }
 );
 
-// 매칭 요청 보내기
+// 참가한 미팅 목록 조회 (새로 추가)
+export const fetchJoinedMeetings = createAsyncThunk(
+  'matching/fetchJoinedMeetings',
+  async (_, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as any;
+      const token = state.auth.token;
+
+      const response = await fetch(`${API_BASE_URL}/matching/joined-meetings`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const result: ApiResponse<Meeting[]> = await response.json();
+      
+      if (!result.success) {
+        return rejectWithValue(result.message || '참가한 미팅 목록을 불러오는데 실패했습니다.');
+      }
+
+      return result.data || [];
+    } catch (error) {
+      return rejectWithValue('네트워크 오류가 발생했습니다.');
+    }
+  }
+);
+
+// 미팅 참가 (새로 추가)
+export const joinMeeting = createAsyncThunk(
+  'matching/joinMeeting',
+  async (meetingId: string, { rejectWithValue, getState }) => {
+    try {
+      console.log('🚀 미팅 참가 API 호출:', `${API_BASE_URL}/matching/meetings/${meetingId}/join`);
+      
+      const state = getState() as any;
+      const token = state.auth.token;
+      
+      if (!token) {
+        return rejectWithValue('로그인이 필요합니다.');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/matching/meetings/${meetingId}/join`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('📥 응답 상태:', response.status, response.statusText);
+
+      const result: ApiResponse<JoinMeetingResponse> = await response.json();
+      console.log('📥 응답 데이터:', result);
+      
+      if (!result.success) {
+        return rejectWithValue(result.message || '미팅 참가에 실패했습니다.');
+      }
+
+      return result.data!;
+    } catch (error) {
+      console.log('❌ 네트워크 오류:', error);
+      return rejectWithValue('네트워크 오류가 발생했습니다.');
+    }
+  }
+);
+
+// 미팅 참가 취소 (새로 추가)
+export const leaveMeeting = createAsyncThunk(
+  'matching/leaveMeeting',
+  async (meetingId: string, { rejectWithValue, getState }) => {
+    try {
+      console.log('🚀 미팅 참가 취소 API 호출:', `${API_BASE_URL}/matching/meetings/${meetingId}/leave`);
+      
+      const state = getState() as any;
+      const token = state.auth.token;
+      
+      if (!token) {
+        return rejectWithValue('로그인이 필요합니다.');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/matching/meetings/${meetingId}/leave`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('📥 응답 상태:', response.status, response.statusText);
+
+      const result: ApiResponse = await response.json();
+      console.log('📥 응답 데이터:', result);
+      
+      if (!result.success) {
+        return rejectWithValue(result.message || '미팅 참가 취소에 실패했습니다.');
+      }
+
+      return meetingId;
+    } catch (error) {
+      console.log('❌ 네트워크 오류:', error);
+      return rejectWithValue('네트워크 오류가 발생했습니다.');
+    }
+  }
+);
+
+// 미팅 참가자 목록 조회 (새로 추가)
+export const fetchMeetingMembers = createAsyncThunk(
+  'matching/fetchMeetingMembers',
+  async (meetingId: string, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as any;
+      const token = state.auth.token;
+
+      const response = await fetch(`${API_BASE_URL}/matching/meetings/${meetingId}/members`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const result: ApiResponse<MeetingMember[]> = await response.json();
+      
+      if (!result.success) {
+        return rejectWithValue(result.message || '참가자 목록을 불러오는데 실패했습니다.');
+      }
+
+      return result.data || [];
+    } catch (error) {
+      return rejectWithValue('네트워크 오류가 발생했습니다.');
+    }
+  }
+);
+
+// 기존 매칭 요청 관련 액션들...
 export const sendMatchingRequest = createAsyncThunk(
   'matching/sendMatchingRequest',
   async (requestData: CreateMatchingRequest, { rejectWithValue, getState }) => {
     try {
       const state = getState() as any;
       const token = state.auth.token;
+
       const response = await fetch(`${API_BASE_URL}/matching/requests`, {
         method: 'POST',
         headers: {
@@ -216,142 +338,119 @@ export const sendMatchingRequest = createAsyncThunk(
         body: JSON.stringify(requestData),
       });
 
-      const result: ApiResponse<{ request: MatchingRequest }> = await response.json();
+      const result: ApiResponse<MatchingRequest> = await response.json();
       
       if (!result.success) {
         return rejectWithValue(result.message || '매칭 요청에 실패했습니다.');
       }
 
-      return result.data!.request;
+      return result.data!;
     } catch (error) {
       return rejectWithValue('네트워크 오류가 발생했습니다.');
     }
   }
 );
 
-// 받은 매칭 요청 목록 조회
 export const fetchReceivedRequests = createAsyncThunk(
   'matching/fetchReceivedRequests',
-  async (params: {
-    page?: number;
-    limit?: number;
-    status?: string;
-  } = {}, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
-      const token = localStorage.getItem('token');
-      const queryParams = new URLSearchParams({
-        type: 'received',
-        ...Object.fromEntries(
-          Object.entries(params).filter(([_, value]) => value !== undefined)
-        ),
-      });
+      const state = getState() as any;
+      const token = state.auth.token;
 
-      const response = await fetch(`${API_BASE_URL}/matching/requests?${queryParams}`, {
+      const response = await fetch(`${API_BASE_URL}/matching/requests/received`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
-      const result: PaginatedResponse<MatchingRequest> = await response.json();
+      const result: ApiResponse<MatchingRequest[]> = await response.json();
       
       if (!result.success) {
-        return rejectWithValue('받은 요청 목록을 불러오는데 실패했습니다.');
+        return rejectWithValue('받은 요청을 불러오는데 실패했습니다.');
       }
 
-      return result.data.requests || [];
+      return result.data || [];
     } catch (error) {
       return rejectWithValue('네트워크 오류가 발생했습니다.');
     }
   }
 );
 
-// 보낸 매칭 요청 목록 조회
 export const fetchSentRequests = createAsyncThunk(
   'matching/fetchSentRequests',
-  async (params: {
-    page?: number;
-    limit?: number;
-    status?: string;
-  } = {}, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
-      const token = localStorage.getItem('token');
-      const queryParams = new URLSearchParams({
-        type: 'sent',
-        ...Object.fromEntries(
-          Object.entries(params).filter(([_, value]) => value !== undefined)
-        ),
-      });
+      const state = getState() as any;
+      const token = state.auth.token;
 
-      const response = await fetch(`${API_BASE_URL}/matching/requests?${queryParams}`, {
+      const response = await fetch(`${API_BASE_URL}/matching/requests/sent`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
-      const result: PaginatedResponse<MatchingRequest> = await response.json();
+      const result: ApiResponse<MatchingRequest[]> = await response.json();
       
       if (!result.success) {
-        return rejectWithValue('보낸 요청 목록을 불러오는데 실패했습니다.');
+        return rejectWithValue('보낸 요청을 불러오는데 실패했습니다.');
       }
 
-      return result.data.requests || [];
+      return result.data || [];
     } catch (error) {
       return rejectWithValue('네트워크 오류가 발생했습니다.');
     }
   }
 );
 
-// 매칭 요청에 응답하기
 export const respondToMatchingRequest = createAsyncThunk(
   'matching/respondToMatchingRequest',
-  async ({ requestId, response }: { requestId: string; response: RespondToMatchingRequest }, { rejectWithValue }) => {
+  async ({ requestId, response: responseData }: { 
+    requestId: string; 
+    response: RespondToMatchingRequest; 
+  }, { rejectWithValue, getState }) => {
     try {
-      const token = localStorage.getItem('token');
-      const apiResponse = await fetch(`${API_BASE_URL}/matching/requests/${requestId}/respond`, {
-        method: 'PUT',
+      const state = getState() as any;
+      const token = state.auth.token;
+
+      const response = await fetch(`${API_BASE_URL}/matching/requests/${requestId}/respond`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(response),
+        body: JSON.stringify(responseData),
       });
 
-      const result: ApiResponse = await apiResponse.json();
+      const result: ApiResponse<MatchingRequest> = await response.json();
       
       if (!result.success) {
         return rejectWithValue(result.message || '요청 응답에 실패했습니다.');
       }
 
-      return { requestId, action: response.action };
+      return result.data!;
     } catch (error) {
       return rejectWithValue('네트워크 오류가 발생했습니다.');
     }
   }
 );
 
-// 매칭 슬라이스
+// 슬라이스 생성
 const matchingSlice = createSlice({
   name: 'matching',
   initialState,
   reducers: {
-    // 필터 설정
-    setFilters: (state, action: PayloadAction<typeof initialState.filters>) => {
-      state.filters = action.payload;
-    },
-    
-    // 선택된 미팅 설정
-    setSelectedMeeting: (state, action: PayloadAction<Meeting | null>) => {
-      state.selectedMeeting = action.payload;
-    },
-    
-    // 에러 클리어
     clearError: (state) => {
       state.error = null;
     },
-    
-    // 상태 리셋
-    resetMatchingState: (state) => {
-      return initialState;
+    setFilters: (state, action: PayloadAction<Partial<typeof initialState.filters>>) => {
+      state.filters = { ...state.filters, ...action.payload };
+    },
+    clearFilters: (state) => {
+      state.filters = {};
+    },
+    setSelectedMeeting: (state, action: PayloadAction<Meeting | null>) => {
+      state.selectedMeeting = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -378,8 +477,7 @@ const matchingSlice = createSlice({
       })
       .addCase(fetchMeetings.fulfilled, (state, action) => {
         state.meetingsLoading = false;
-        state.meetings = action.payload.meetings;
-        state.meetingsPagination = action.payload.pagination;
+        state.meetings = action.payload;
       })
       .addCase(fetchMeetings.rejected, (state, action) => {
         state.meetingsLoading = false;
@@ -401,7 +499,86 @@ const matchingSlice = createSlice({
         state.error = action.payload as string;
       });
 
-    // 매칭 요청 보내기
+    // 참가한 미팅 목록 조회 (새로 추가)
+    builder
+      .addCase(fetchJoinedMeetings.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchJoinedMeetings.fulfilled, (state, action) => {
+        state.loading = false;
+        state.joinedMeetings = action.payload;
+      })
+      .addCase(fetchJoinedMeetings.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // 미팅 참가 (새로 추가)
+    builder
+      .addCase(joinMeeting.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(joinMeeting.fulfilled, (state, action) => {
+        state.loading = false;
+        // 미팅 목록에서 참가자 수 업데이트
+        const meetingIndex = state.meetings.findIndex(m => m.id === action.payload.meeting.id);
+        if (meetingIndex !== -1) {
+          state.meetings[meetingIndex] = {
+            ...state.meetings[meetingIndex],
+            current_members: action.payload.current_members,
+            is_joined: true
+          };
+        }
+      })
+      .addCase(joinMeeting.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // 미팅 참가 취소 (새로 추가)
+    builder
+      .addCase(leaveMeeting.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(leaveMeeting.fulfilled, (state, action) => {
+        state.loading = false;
+        // 미팅 목록에서 참가자 수 업데이트
+        const meetingIndex = state.meetings.findIndex(m => m.id === action.payload);
+        if (meetingIndex !== -1) {
+          const currentMembers = state.meetings[meetingIndex].current_members || 0;
+          state.meetings[meetingIndex] = {
+            ...state.meetings[meetingIndex],
+            current_members: Math.max(0, currentMembers - 1),
+            is_joined: false
+          };
+        }
+        // 참가한 미팅 목록에서 제거
+        state.joinedMeetings = state.joinedMeetings.filter(m => m.id !== action.payload);
+      })
+      .addCase(leaveMeeting.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // 미팅 참가자 목록 조회 (새로 추가)
+    builder
+      .addCase(fetchMeetingMembers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchMeetingMembers.fulfilled, (state, action) => {
+        state.loading = false;
+        state.meetingMembers = action.payload;
+      })
+      .addCase(fetchMeetingMembers.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // 매칭 요청 관련 리듀서들...
     builder
       .addCase(sendMatchingRequest.pending, (state) => {
         state.loading = true;
@@ -416,7 +593,6 @@ const matchingSlice = createSlice({
         state.error = action.payload as string;
       });
 
-    // 받은 요청 목록 조회
     builder
       .addCase(fetchReceivedRequests.pending, (state) => {
         state.requestsLoading = true;
@@ -431,7 +607,6 @@ const matchingSlice = createSlice({
         state.error = action.payload as string;
       });
 
-    // 보낸 요청 목록 조회
     builder
       .addCase(fetchSentRequests.pending, (state) => {
         state.requestsLoading = true;
@@ -446,7 +621,6 @@ const matchingSlice = createSlice({
         state.error = action.payload as string;
       });
 
-    // 매칭 요청 응답
     builder
       .addCase(respondToMatchingRequest.pending, (state) => {
         state.loading = true;
@@ -454,42 +628,34 @@ const matchingSlice = createSlice({
       })
       .addCase(respondToMatchingRequest.fulfilled, (state, action) => {
         state.loading = false;
-        const { requestId, action: responseAction } = action.payload;
-        
-        // 받은 요청 목록에서 상태 업데이트
-        const requestIndex = state.receivedRequests.findIndex(req => req.id === requestId);
+        const requestIndex = state.receivedRequests.findIndex(r => r.id === action.payload.id);
         if (requestIndex !== -1) {
-          state.receivedRequests[requestIndex].status = responseAction === 'accept' ? 'accepted' : 'rejected';
-          state.receivedRequests[requestIndex].responded_at = new Date().toISOString();
+          state.receivedRequests[requestIndex] = action.payload;
         }
       })
       .addCase(respondToMatchingRequest.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });
-  },
+  }
 });
 
-// 액션 내보내기
-export const {
-  setFilters,
-  setSelectedMeeting,
-  clearError,
-  resetMatchingState,
-} = matchingSlice.actions;
+// 액션 및 셀렉터 export
+export const { clearError, setFilters, clearFilters, setSelectedMeeting } = matchingSlice.actions;
 
-// 셀렉터
+// 셀렉터들
 export const selectMeetings = (state: { matching: MatchingState }) => state.matching.meetings;
 export const selectMyMeetings = (state: { matching: MatchingState }) => state.matching.myMeetings;
+export const selectJoinedMeetings = (state: { matching: MatchingState }) => state.matching.joinedMeetings;
 export const selectSelectedMeeting = (state: { matching: MatchingState }) => state.matching.selectedMeeting;
+export const selectMeetingMembers = (state: { matching: MatchingState }) => state.matching.meetingMembers;
+export const selectMeetingsLoading = (state: { matching: MatchingState }) => state.matching.meetingsLoading;
 export const selectReceivedRequests = (state: { matching: MatchingState }) => state.matching.receivedRequests;
 export const selectSentRequests = (state: { matching: MatchingState }) => state.matching.sentRequests;
-export const selectMeetingsLoading = (state: { matching: MatchingState }) => state.matching.meetingsLoading;
 export const selectRequestsLoading = (state: { matching: MatchingState }) => state.matching.requestsLoading;
+export const selectMeetingsPagination = (state: { matching: MatchingState }) => state.matching.meetingsPagination;
+export const selectFilters = (state: { matching: MatchingState }) => state.matching.filters;
 export const selectMatchingLoading = (state: { matching: MatchingState }) => state.matching.loading;
 export const selectMatchingError = (state: { matching: MatchingState }) => state.matching.error;
-export const selectFilters = (state: { matching: MatchingState }) => state.matching.filters;
-export const selectMeetingsPagination = (state: { matching: MatchingState }) => state.matching.meetingsPagination;
 
-// 리듀서 내보내기
 export default matchingSlice.reducer;

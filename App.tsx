@@ -9,6 +9,8 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import { DashboardScreen } from './src/screens/DashboardScreenSimple';
 import { CreateMeetingScreen } from './src/screens/CreateMeetingScreen';
+import { MeetingListScreen } from './src/screens/MeetingListScreen';
+import JoinedMeetingsScreen from './src/screens/JoinedMeetingsScreen';
 import { useAppSelector } from './src/hooks/useAppDispatch';
 
 // 네비게이션 타입 정의
@@ -17,6 +19,8 @@ export type RootStackParamList = {
   Register: undefined;
   Dashboard: undefined;
   CreateMeeting: undefined;
+  MeetingList: undefined;
+  JoinedMeetings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -38,9 +42,40 @@ function MainNavigator() {
           // 인증된 사용자용 스크린
           <>
             <Stack.Screen name="Dashboard">
-              {(props) => <DashboardScreen {...props} onCreateMeeting={() => props.navigation.navigate('CreateMeeting')} />}
+              {(props) => (
+                <DashboardScreen 
+                  {...props} 
+                  onCreateMeeting={() => props.navigation.navigate('CreateMeeting')}
+                  onJoinedMeetings={() => props.navigation.navigate('JoinedMeetings')}
+                  onMeetingList={() => props.navigation.navigate('MeetingList')}
+                />
+              )}
             </Stack.Screen>
-            <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
+            <Stack.Screen name="CreateMeeting">
+              {(props) => (
+                <CreateMeetingScreen 
+                  {...props}
+                  onBack={() => props.navigation.goBack()}
+                  onSuccess={() => props.navigation.navigate('Dashboard')}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="MeetingList">
+              {(props) => (
+                <MeetingListScreen 
+                  {...props}
+                  onBack={() => props.navigation.goBack()}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="JoinedMeetings">
+              {(props) => (
+                <JoinedMeetingsScreen 
+                  {...props}
+                  onBack={() => props.navigation.goBack()}
+                />
+              )}
+            </Stack.Screen>
           </>
         )}
       </Stack.Navigator>
