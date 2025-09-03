@@ -87,8 +87,9 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
       return;
     }
 
-    // 정원이 가득 찬 경우
-    if ((meeting.current_members || 0) >= meeting.group_size) {
+    // 정원이 가득 찬 경우 (group_size는 한 팀 인원, 총 인원은 group_size * 2)
+    const maxMembers = meeting.group_size * 2;
+    if ((meeting.current_members || 0) >= maxMembers) {
       Alert.alert('알림', '참가 인원이 가득 찼습니다.');
       return;
     }
@@ -154,7 +155,8 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
   const renderMeetingItem = ({ item: meeting }: { item: Meeting }) => {
     const isMyMeeting = user && meeting.leader_id === user.id;
     const isJoined = meeting.is_joined;
-    const isFull = (meeting.current_members || 0) >= meeting.group_size;
+    const maxMembers = meeting.group_size * 2;
+    const isFull = (meeting.current_members || 0) >= maxMembers;
     const isAgeMatch = user && user.age >= meeting.min_age && user.age <= meeting.max_age;
 
     return (
@@ -180,7 +182,7 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
                 styles.memberCount,
                 isFull ? styles.fullMemberCount : styles.availableMemberCount
               ]}>
-                {meeting.current_members || 0}/{meeting.group_size}
+                {meeting.current_members || 0}/{meeting.group_size * 2}
               </Text>
               <Text style={styles.memberLabel}>명</Text>
             </View>

@@ -165,8 +165,9 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
         throw new Error('이미 참가 신청한 미팅입니다.');
       }
 
-      // 4. 참가 인원 확인
-      if (parseInt(meeting.current_members) >= parseInt(meeting.group_size)) {
+      // 4. 참가 인원 확인 (group_size는 한 팀 인원, 총 인원은 group_size * 2)
+      const maxMembers = parseInt(meeting.group_size) * 2;
+      if (parseInt(meeting.current_members) >= maxMembers) {
         throw new Error('참가 인원이 가득 찼습니다.');
       }
 
@@ -209,7 +210,8 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
       data: {
         meeting: result,
         current_members: result.current_members,
-        remaining_slots: result.group_size - result.current_members
+        max_members: result.group_size * 2,
+        remaining_slots: (result.group_size * 2) - result.current_members
       }
     });
 
