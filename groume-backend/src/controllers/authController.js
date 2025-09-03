@@ -6,14 +6,14 @@ const Joi = require('joi');
 const registerSchema = Joi.object({
   username: Joi.string().alphanum().min(3).max(50).required(),
   email: Joi.string().email().required(),
-  password: Joi.string().min(6).max(100).required(),
+  password: Joi.string().min(8).max(100).required(), // 프론트엔드와 맞춤 (8자)
   name: Joi.string().min(2).max(100).required(),
   age: Joi.number().integer().min(18).max(100).required(),
   gender: Joi.string().valid('male', 'female').required(),
   region: Joi.string().max(50).required(),
-  phone: Joi.string().max(20).optional(),
-  bio: Joi.string().max(1000).optional(),
-  interests: Joi.array().items(Joi.string()).optional()
+  phone: Joi.string().max(20).optional().allow(''), // 빈 문자열 허용
+  bio: Joi.string().max(1000).optional().allow(''), // 빈 문자열 허용
+  interests: Joi.array().items(Joi.string()).optional().default([]) // 기본값 설정
 });
 
 // 로그인 검증 스키마
