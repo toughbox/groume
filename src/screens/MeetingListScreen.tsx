@@ -17,6 +17,7 @@ import {
   fetchMeetings,
   joinMeeting,
   leaveMeeting,
+  cancelMeeting,
   sendMatchingRequest,
   selectMeetings,
   selectMeetingsLoading,
@@ -162,6 +163,41 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
     );
   };
 
+  const handleCancelMeeting = (meeting: Meeting) => {
+    Alert.alert(
+      '미팅 취소',
+      `"${meeting.title}" 미팅을 취소하시겠습니까?\n\n⚠️ 다른 참가자가 있는 경우 가장 먼저 참가한 분에게 리더가 위임됩니다.`,
+      [
+        { 
+          text: '아니오', 
+          style: 'cancel' 
+        },
+        {
+          text: '예, 취소하기',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await dispatch(cancelMeeting(meeting.id)).unwrap();
+              
+              if (result.action === 'cancelled') {
+                Alert.alert('완료', '미팅이 취소되었습니다.');
+              } else if (result.action === 'transferred') {
+                Alert.alert(
+                  '리더 위임 완료', 
+                  `미팅 리더가 ${result.new_leader.name}님에게 위임되었습니다.`
+                );
+              }
+              
+              loadMeetings(); // 목록 새로고침
+            } catch (error) {
+              Alert.alert('오류', error as string || '미팅 취소에 실패했습니다.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const filteredMeetings = meetings.filter((meeting) =>
     meeting.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     meeting.preferred_region.toLowerCase().includes(searchQuery.toLowerCase())
@@ -249,10 +285,10 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
           <View style={styles.actionButtons}>
             {isMyMeeting ? (
               <Button
-                title="내 미팅"
-                buttonStyle={[styles.actionButton, styles.myMeetingButton]}
-                titleStyle={styles.myMeetingButtonText}
-                disabled
+                title="미팅 취소"
+                buttonStyle={[styles.actionButton, styles.cancelButton]}
+                titleStyle={styles.cancelButtonText}
+                onPress={() => handleCancelMeeting(meeting)}
               />
             ) : isJoined ? (
               <Button
@@ -509,10 +545,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: 'white',
   },
-  myMeetingButton: {
-    backgroundColor: '#9E9E9E',
+  cancelButton: {
+    backgroundColor: '#FF6B6B',
   },
-  myMeetingButtonText: {
+  cancelButtonText: {
     fontSize: 14,
     fontWeight: '500',
     color: 'white',

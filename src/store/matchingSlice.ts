@@ -320,6 +320,34 @@ export const fetchMeetingMembers = createAsyncThunk(
   }
 );
 
+// 미팅 취소 (리더만 가능)
+export const cancelMeeting = createAsyncThunk(
+  'matching/cancelMeeting',
+  async (meetingId: string, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as any;
+      const token = state.auth.token;
+
+      const response = await fetch(`${API_BASE_URL}/matching/meetings/${meetingId}/cancel`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const result: ApiResponse<any> = await response.json();
+      
+      if (!result.success) {
+        return rejectWithValue(result.message || '미팅 취소에 실패했습니다.');
+      }
+
+      return { meetingId, ...result.data };
+    } catch (error) {
+      return rejectWithValue('네트워크 오류가 발생했습니다.');
+    }
+  }
+);
+
 // 기존 매칭 요청 관련 액션들...
 export const sendMatchingRequest = createAsyncThunk(
   'matching/sendMatchingRequest',
@@ -633,6 +661,45 @@ const matchingSlice = createSlice({
         }
       })
       .addCase(respondToMatchingRequest.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // 미팅 취소
+    builder
+      .addCase(cancelMeeting.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(cancelMeeting.fulfilled, (state, action) => {
+        state.loading = false;
+        const { meetingId } = action.payload;
+        
+        // 내 미팅 목록에서 제거 (완전 취소된 경우) 또는 리더 변경 처리
+        const myMeetingIndex = state.myMeetings.findIndex(m => m.id === meetingId);
+        if (myMeetingIndex !== -1) {
+          if (action.payload.action === 'cancelled') {
+            // 완전 취소: 목록에서 제거
+            state.myMeetings.splice(myMeetingIndex, 1);
+          } else if (action.payload.action === 'transferred') {
+            // 리더 위임: 내 미팅 목록에서 제거 (더 이상 내가 리더가 아니므로)
+            state.myMeetings.splice(myMeetingIndex, 1);
+          }
+        }
+
+        // 전체 미팅 목록에서도 업데이트
+        const meetingIndex = state.meetings.findIndex(m => m.id === meetingId);
+        if (meetingIndex !== -1) {
+          if (action.payload.action === 'cancelled') {
+            // 완전 취소: 전체 목록에서 제거
+            state.meetings.splice(meetingIndex, 1);
+          } else if (action.payload.action === 'transferred') {
+            // 리더 위임: 리더 정보 업데이트
+            state.meetings[meetingIndex].leader_id = action.payload.new_leader.id;
+          }
+        }
+      })
+      .addCase(cancelMeeting.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

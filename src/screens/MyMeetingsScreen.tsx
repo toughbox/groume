@@ -14,6 +14,7 @@ import { Button, Card, Badge } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchMyMeetings,
+  cancelMeeting,
   selectMyMeetings,
   selectMatchingLoading,
   selectMatchingError,
@@ -58,6 +59,41 @@ export const MyMeetingsScreen: React.FC<MyMeetingsScreenProps> = ({
 
   const handleRefresh = () => {
     loadMeetings();
+  };
+
+  const handleCancelMeeting = (meeting: Meeting) => {
+    Alert.alert(
+      '미팅 취소',
+      `"${meeting.title}" 미팅을 취소하시겠습니까?\n\n⚠️ 다른 참가자가 있는 경우 가장 먼저 참가한 분에게 리더가 위임됩니다.`,
+      [
+        { 
+          text: '아니오', 
+          style: 'cancel' 
+        },
+        {
+          text: '예, 취소하기',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await dispatch(cancelMeeting(meeting.id)).unwrap();
+              
+              if (result.action === 'cancelled') {
+                Alert.alert('완료', '미팅이 취소되었습니다.');
+              } else if (result.action === 'transferred') {
+                Alert.alert(
+                  '리더 위임 완료', 
+                  `미팅 리더가 ${result.new_leader.name}님에게 위임되었습니다.`
+                );
+              }
+              
+              loadMeetings(); // 목록 새로고침
+            } catch (error) {
+              Alert.alert('오류', error as string || '미팅 취소에 실패했습니다.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -214,6 +250,21 @@ export const MyMeetingsScreen: React.FC<MyMeetingsScreenProps> = ({
               </Text>
             )}
           </View>
+
+          {/* 액션 버튼 (활성 상태 미팅만) */}
+          {item.status === 'active' && (
+            <View style={styles.actionContainer}>
+              <Button
+                title="미팅 취소"
+                buttonStyle={styles.cancelButton}
+                titleStyle={styles.cancelButtonText}
+                onPress={(e) => {
+                  e.stopPropagation(); // 카드 클릭 이벤트와 분리
+                  handleCancelMeeting(item);
+                }}
+              />
+            </View>
+          )}
         </TouchableOpacity>
       </Card>
     );
@@ -518,5 +569,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+  },
+  actionContainer: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  cancelButton: {
+    backgroundColor: '#FF6B6B',
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });

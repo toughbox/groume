@@ -489,6 +489,171 @@ router.get('/joined-meetings', authenticateToken, async (req, res) => {
 });
 
 /**
+ * 미팅 취소 (리더만 가능, 멤버가 있으면 리더 위임)
+ */
+router.delete('/meetings/:id/cancel', authenticateToken, async (req, res) => {
+  try {
+    const meetingId = parseInt(req.params.id);
+    const userId = req.user.userId;
+
+    console.log(`🗑️ 미팅 취소 요청: 사용자 ${userId} -> 미팅 ${meetingId}`);
+
+    const result = await transaction(async (client) => {
+      // 1. 미팅 정보 및 리더 권한 확인
+      const meetingResult = await client.query(`
+        SELECT * FROM groume.meeting 
+        WHERE id = $1 AND status = 'active'
+      `, [meetingId]);
+
+      if (meetingResult.rows.length === 0) {
+        throw new Error('미팅을 찾을 수 없거나 이미 취소된 미팅입니다.');
+      }
+
+      const meeting = meetingResult.rows[0];
+      if (meeting.leader_id !== userId) {
+        throw new Error('미팅 리더만 취소할 수 있습니다.');
+      }
+
+      // 2. 현재 참가자 목록 조회 (리더 제외)
+      const membersResult = await client.query(`
+        SELECT mm.*, u.username, u.name
+        FROM groume.meeting_member mm
+        JOIN groume."user" u ON mm.user_id = u.id
+        WHERE mm.meeting_id = $1 
+          AND mm.is_confirmed = true 
+          AND mm.role = 'member'
+        ORDER BY mm.joined_at ASC
+      `, [meetingId]);
+
+      const members = membersResult.rows;
+      console.log(`👥 현재 멤버 수: ${members.length}명`);
+
+      if (members.length === 0) {
+        // 3-A. 리더만 있는 경우: 미팅 완전 삭제
+        await client.query(`
+          DELETE FROM groume.meeting_member 
+          WHERE meeting_id = $1
+        `, [meetingId]);
+
+        await client.query(`
+          DELETE FROM groume.meeting 
+          WHERE id = $1
+        `, [meetingId]);
+
+        console.log('✅ 미팅 완전 삭제 완료 (리더만 있었음)');
+        return {
+          action: 'cancelled',
+          message: '미팅이 취소되었습니다.',
+          meeting_title: meeting.title
+        };
+
+      } else {
+        // 3-B. 멤버가 있는 경우: 리더 위임
+        const newLeader = members[0]; // 가장 먼저 참가한 멤버
+
+        // 기존 리더 제거
+        await client.query(`
+          DELETE FROM groume.meeting_member 
+          WHERE meeting_id = $1 AND user_id = $2
+        `, [meetingId, userId]);
+
+        // 새로운 리더로 업데이트
+        await client.query(`
+          UPDATE groume.meeting 
+          SET leader_id = $1, updated_at = NOW() 
+          WHERE id = $2
+        `, [newLeader.user_id, meetingId]);
+
+        // 새로운 리더의 역할 업데이트
+        await client.query(`
+          UPDATE groume.meeting_member 
+          SET role = 'leader' 
+          WHERE meeting_id = $1 AND user_id = $2
+        `, [meetingId, newLeader.user_id]);
+
+        console.log(`✅ 리더 위임 완료: ${newLeader.username}(${newLeader.name})에게 위임`);
+        return {
+          action: 'transferred',
+          message: `미팅 리더가 ${newLeader.name}님에게 위임되었습니다.`,
+          meeting_title: meeting.title,
+          new_leader: {
+            id: newLeader.user_id,
+            username: newLeader.username,
+            name: newLeader.name
+          }
+        };
+      }
+    });
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('❌ 미팅 취소 에러:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || '미팅 취소 중 오류가 발생했습니다.'
+    });
+  }
+});
+
+/**
+ * 고아 미팅 데이터 정리 (관리자용)
+ */
+router.delete('/cleanup-orphan-meetings', authenticateToken, async (req, res) => {
+  try {
+    console.log('🧹 고아 미팅 데이터 정리 시작...');
+
+    const result = await transaction(async (client) => {
+      // 1. 멤버가 없는 미팅 찾기
+      const orphanMeetingsResult = await client.query(`
+        SELECT m.id, m.title, m.status
+        FROM groume.meeting m
+        LEFT JOIN groume.meeting_member mm ON m.id = mm.meeting_id
+        WHERE mm.meeting_id IS NULL
+      `);
+
+      const orphanMeetings = orphanMeetingsResult.rows;
+      console.log(`🔍 고아 미팅 발견: ${orphanMeetings.length}개`);
+
+      if (orphanMeetings.length === 0) {
+        return { deletedCount: 0, meetings: [] };
+      }
+
+      // 2. 고아 미팅들 삭제
+      const meetingIds = orphanMeetings.map(m => m.id);
+      await client.query(`
+        DELETE FROM groume.meeting 
+        WHERE id = ANY($1)
+      `, [meetingIds]);
+
+      console.log(`✅ 고아 미팅 ${orphanMeetings.length}개 삭제 완료`);
+
+      return {
+        deletedCount: orphanMeetings.length,
+        meetings: orphanMeetings
+      };
+    });
+
+    res.json({
+      success: true,
+      message: `고아 미팅 ${result.deletedCount}개가 정리되었습니다.`,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('❌ 고아 미팅 정리 에러:', error);
+    res.status(500).json({
+      success: false,
+      message: '고아 미팅 정리 중 오류가 발생했습니다.'
+    });
+  }
+});
+
+/**
  * 현재 사용자의 미팅 참여 상태 조회
  */
 router.get('/my-meeting-status', authenticateToken, async (req, res) => {
