@@ -8,9 +8,10 @@ import {
   Platform,
   Alert,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, SearchBar, Card, Avatar, Badge } from 'react-native-elements';
+import { Button, Card, Avatar, Badge } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchMeetings,
@@ -314,17 +315,15 @@ export const MeetingListScreen: React.FC<MeetingListScreenProps> = ({
       </View>
 
       {/* 검색바 */}
-      <SearchBar
-        placeholder="미팅 제목이나 지역으로 검색..."
-        onChangeText={setSearchQuery}
-        value={searchQuery}
-        containerStyle={styles.searchContainer}
-        inputContainerStyle={styles.searchInputContainer}
-        inputStyle={styles.searchInput}
-        searchIcon={{ color: '#FF6B6B' }}
-        clearIcon={{ color: '#FF6B6B' }}
-        platform={Platform.OS === 'ios' ? 'ios' : 'android'}
-      />
+      <View style={styles.searchContainer}>
+        <TextInput
+          placeholder="미팅 제목이나 지역으로 검색..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={styles.searchInput}
+          placeholderTextColor="#999"
+        />
+      </View>
 
       {/* 미팅 목록 */}
       <FlatList
@@ -379,19 +378,20 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     backgroundColor: 'white',
-    borderTopWidth: 0,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
     paddingHorizontal: 15,
     paddingVertical: 10,
   },
-  searchInputContainer: {
+  searchInput: {
     backgroundColor: '#F8F9FA',
     borderRadius: 10,
-  },
-  searchInput: {
     fontSize: 16,
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   listContainer: {
     padding: 15,

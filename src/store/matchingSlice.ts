@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { API_CONFIG } from '../config/environment';
 import { 
   Meeting, 
   MeetingMember,
@@ -11,11 +12,8 @@ import {
   PaginatedResponse 
 } from '../types';
 
-// API 기본 URL
-const API_BASE_URL = __DEV__ 
-  //? 'http://192.168.206.171:3030/api'  // 개발 환경: 실제 IP 주소와 포트 사용
-  ? 'http://192.168.0.19:3030/api'  // 개발 환경: 실제 IP 주소와 포트 사용
-  : 'https://api.groume.com/api'; // 프로덕션 환경
+// API 기본 URL (환경 설정 파일에서 가져옴)
+const API_BASE_URL = API_CONFIG.BASE_URL;
 
 // 매칭 상태 인터페이스
 interface MatchingState {

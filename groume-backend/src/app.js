@@ -41,13 +41,14 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS 설정
+// CORS 설정 (동적 IP 주소 사용)
+const currentIP = process.env.CURRENT_IP || '192.168.206.171';
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || [
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [
     'http://localhost:19006', 
     'http://localhost:3030',
-    'http://192.168.206.171:19006',  // React Native 개발 서버
-    'http://192.168.206.171:3030'    // 백엔드 서버 IP
+    `http://${currentIP}:19006`,  // React Native 개발 서버 (동적 IP)
+    `http://${currentIP}:3030`    // 백엔드 서버 IP (동적 IP)
   ],
   credentials: true,
   optionsSuccessStatus: 200
