@@ -29,6 +29,27 @@ router.post('/meetings', authenticateToken, async (req, res) => {
 
     // 트랜잭션으로 미팅과 리더 참가 정보를 함께 저장
     const result = await transaction(async (client) => {
+      // 0. 사용자의 기존 미팅 참여 상태 확인
+      const existingMeetingResult = await client.query(`
+        SELECT 
+          m.id as meeting_id,
+          m.title,
+          mm.role
+        FROM groume.meeting m
+        JOIN groume.meeting_member mm ON m.id = mm.meeting_id
+        WHERE mm.user_id = $1 
+          AND m.status = 'active' 
+          AND mm.is_confirmed = true
+      `, [userId]);
+
+      if (existingMeetingResult.rows.length > 0) {
+        const existingMeeting = existingMeetingResult.rows[0];
+        if (existingMeeting.role === 'leader') {
+          throw new Error(`이미 리더로 진행 중인 미팅이 있습니다: "${existingMeeting.title}"`);
+        } else {
+          throw new Error(`이미 참가 중인 미팅이 있습니다: "${existingMeeting.title}"\n새로운 미팅을 생성하려면 기존 미팅을 먼저 취소해주세요.`);
+        }
+      }
       // 1. 미팅 생성
       const meetingResult = await client.query(`
         INSERT INTO groume.meeting (
@@ -185,12 +206,34 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
 
       const meeting = meetingResult.rows[0];
 
-      // 2. 자기 자신의 미팅인지 확인
+      // 2. 사용자의 기존 미팅 참여 상태 확인
+      const existingMeetingResult = await client.query(`
+        SELECT 
+          m.id as meeting_id,
+          m.title,
+          mm.role
+        FROM groume.meeting m
+        JOIN groume.meeting_member mm ON m.id = mm.meeting_id
+        WHERE mm.user_id = $1 
+          AND m.status = 'active' 
+          AND mm.is_confirmed = true
+      `, [userId]);
+
+      if (existingMeetingResult.rows.length > 0) {
+        const existingMeeting = existingMeetingResult.rows[0];
+        if (existingMeeting.role === 'leader') {
+          throw new Error(`이미 리더로 진행 중인 미팅이 있습니다: "${existingMeeting.title}"\n다른 미팅에 참가하려면 리더 미팅을 먼저 취소해주세요.`);
+        } else {
+          throw new Error(`이미 참가 중인 미팅이 있습니다: "${existingMeeting.title}"\n동시에 여러 미팅에 참가할 수 없습니다.`);
+        }
+      }
+
+      // 3. 자기 자신의 미팅인지 확인
       if (meeting.leader_id === userId) {
         throw new Error('자신이 생성한 미팅에는 참가 신청할 수 없습니다.');
       }
 
-      // 3. 이미 참가했는지 확인
+      // 4. 이미 참가했는지 확인 (중복 방지)
       const existingMember = await client.query(`
         SELECT id FROM groume.meeting_member 
         WHERE meeting_id = $1 AND user_id = $2
@@ -200,13 +243,13 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
         throw new Error('이미 참가 신청한 미팅입니다.');
       }
 
-      // 4. 참가 인원 확인 (group_size는 한 팀 인원, 총 인원은 group_size * 2)
+      // 5. 참가 인원 확인 (group_size는 한 팀 인원, 총 인원은 group_size * 2)
       const maxMembers = parseInt(meeting.group_size) * 2;
       if (parseInt(meeting.current_members) >= maxMembers) {
         throw new Error('참가 인원이 가득 찼습니다.');
       }
 
-      // 5. 사용자 정보 확인 (나이, 성별)
+      // 6. 사용자 정보 확인 (나이, 성별)
       const userResult = await client.query(`
         SELECT age, gender FROM groume."user" WHERE id = $1
       `, [userId]);
@@ -220,7 +263,7 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
         throw new Error(`나이 조건에 맞지 않습니다. (${meeting.min_age}세 ~ ${meeting.max_age}세)`);
       }
 
-      // 6. 남녀 비율 확인
+      // 7. 남녀 비율 확인
       const groupSize = parseInt(meeting.group_size);
       const currentMaleCount = parseInt(meeting.male_count) || 0;
       const currentFemaleCount = parseInt(meeting.female_count) || 0;
@@ -232,11 +275,11 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
         throw new Error(`남성 참가자가 가득 찼습니다. (현재: 남성 ${currentMaleCount}명 / ${groupSize}명)`);
       }
       
-      if (userGender === 'female' && currentFemaleCount >= groupSize) {
-        throw new Error(`여성 참가자가 가득 찼습니다. (현재: 여성 ${currentFemaleCount}명 / ${groupSize}명)`);
-      }
+             if (userGender === 'female' && currentFemaleCount >= groupSize) {
+         throw new Error(`여성 참가자가 가득 찼습니다. (현재: 여성 ${currentFemaleCount}명 / ${groupSize}명)`);
+       }
 
-      // 6. 참가 신청 추가
+       // 8. 참가 신청 추가
       const joinResult = await client.query(`
         INSERT INTO groume.meeting_member (meeting_id, user_id, role, is_confirmed)
         VALUES ($1, $2, 'member', true)
@@ -245,7 +288,7 @@ router.post('/meetings/:id/join', authenticateToken, async (req, res) => {
 
       console.log('✅ 미팅 참가 신청 완료:', joinResult.rows[0]);
 
-      // 7. 업데이트된 미팅 정보 반환 (성별별 참가자 수 포함)
+      // 9. 업데이트된 미팅 정보 반환 (성별별 참가자 수 포함)
       const updatedMeetingResult = await client.query(`
         SELECT 
           m.*,
@@ -441,6 +484,55 @@ router.get('/joined-meetings', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: '참가한 미팅 조회 중 오류가 발생했습니다.'
+    });
+  }
+});
+
+/**
+ * 현재 사용자의 미팅 참여 상태 조회
+ */
+router.get('/my-meeting-status', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const statusResult = await query(`
+      SELECT 
+        m.id as meeting_id,
+        m.title,
+        m.status,
+        mm.role,
+        mm.joined_at,
+        TIMEZONE('Asia/Seoul', mm.joined_at) as joined_at_kst
+      FROM groume.meeting m
+      JOIN groume.meeting_member mm ON m.id = mm.meeting_id
+      WHERE mm.user_id = $1 
+        AND m.status = 'active' 
+        AND mm.is_confirmed = true
+      ORDER BY mm.joined_at DESC
+      LIMIT 1
+    `, [userId]);
+
+    const currentMeeting = statusResult.rows.length > 0 ? {
+      ...statusResult.rows[0],
+      joined_at: statusResult.rows[0].joined_at_kst
+    } : null;
+
+    res.json({
+      success: true,
+      message: '미팅 참여 상태를 성공적으로 조회했습니다.',
+      data: {
+        has_active_meeting: statusResult.rows.length > 0,
+        current_meeting: currentMeeting,
+        can_create_meeting: statusResult.rows.length === 0,
+        can_join_meeting: statusResult.rows.length === 0
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 미팅 상태 조회 에러:', error);
+    res.status(500).json({
+      success: false,
+      message: '미팅 상태 조회 중 오류가 발생했습니다.'
     });
   }
 });
