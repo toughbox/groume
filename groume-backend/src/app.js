@@ -46,8 +46,10 @@ const currentIP = process.env.CURRENT_IP || '192.168.206.171';
 app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [
     'http://localhost:19006', 
+    'http://localhost:8081',     // React Native Metro 번들러
     'http://localhost:3030',
     `http://${currentIP}:19006`,  // React Native 개발 서버 (동적 IP)
+    `http://${currentIP}:8081`,   // React Native Metro 번들러 (동적 IP)
     `http://${currentIP}:3030`    // 백엔드 서버 IP (동적 IP)
   ],
   credentials: true,
